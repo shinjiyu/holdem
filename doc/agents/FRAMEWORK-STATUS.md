@@ -20,7 +20,7 @@
 
 | 项 | 说明 |
 |----|------|
-| REQ-DECK-SHUFFLE | 第一刀 module spec |
+| REQ-DECK-SHUFFLE | ✅ 可复现洗牌 + 发底牌/公共牌 |
 | REQ-WEB-TABLE | 人控：点完一手；托管中点击无效 |
 | REQ-AGENT-PLAY | 同一帐号托管给自己的 AI；可收回 |
 | REQ-AUTH-GITHUB | 人 OAuth；Agent 桌令牌 |

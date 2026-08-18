@@ -12,7 +12,5 @@ export type {
   HandResult,
 } from "./shared/dto";
 
-export interface HeadlessPlugin {
-  readonly id: string;
-  step?(): void;
-}
+export type { DealPort, ShuffleRequest, DealHoleRequest, DealBoardRequest, HoleDealt } from "./deck";
+

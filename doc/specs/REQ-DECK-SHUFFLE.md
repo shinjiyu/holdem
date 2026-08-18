@@ -1,8 +1,8 @@
 ---
 id: REQ-DECK-SHUFFLE
 module: deck
-status: draft
-agent: unassigned
+status: impl-green
+agent: lead
 owns_paths:
   - src/contracts/deck/**
   - src/deck/**
@@ -38,7 +38,7 @@ last_updated: 2026-08-18
 - 宿主 MCP → REQ-HOST-*
 
 ## Acceptance
-- [ ] 同 seed 两次 shuffle 顺序一致
-- [ ] 同一手内无重复牌
-- [ ] `py scripts/adl_check.py` exit 0
-- [ ] 本 plugin 不 import `src/hosts/**`
+- [x] 同 seed 两次 shuffle 顺序一致
+- [x] 同一手内无重复牌
+- [x] `py scripts/adl_check.py` exit 0
+- [x] 本 plugin 不 import `src/hosts/**`

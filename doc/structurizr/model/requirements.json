@@ -38,9 +38,9 @@
       "component": "deck",
       "slice": "engine-mvp",
       "ui": false,
-      "test_kind": "manual",
-      "tests": [],
-      "acceptance": "DealPort deals 2 hole cards per seated player then 3-1-1 board; seedable RNG; no host import"
+      "test_kind": "unit",
+      "tests": ["tests/deck/shuffle-deal.test.ts"],
+      "acceptance": "DealPort deals 2 hole cards per seated player then 3-1-1 board; same seed is reproducible; no duplicate cards in a hand; no host import"
     },
     {
       "id": "REQ-EVALUATE-RANK",
