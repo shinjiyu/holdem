@@ -50,19 +50,6 @@ const PUBLIC_BASE = env("HOLDEM_PUBLIC_BASE", "http://127.0.0.1:3010").replace(/
 const REDIRECT_URI = env("HOLDEM_REDIRECT_URI", `${PUBLIC_BASE}/oauth/callback`);
 const COOKIE_NAME = "holdem_session";
 const COOKIE_SECRET = env("TABLE_TOKEN_SECRET", "dev-only-change-me");
-/** Temporary multi-seat testing. Unset HOLDEM_TEST_SECRET to disable /dev/as. */
-const TEST_SECRET = env("HOLDEM_TEST_SECRET");
-const TEST_LOGINS = new Set(["bot1", "bot2", "bot3", "bot4", "bot5", "bot6"]);
-const TEST_STACK = 1_000_000;
-
-function isTestLogin(login: string): boolean {
-  return TEST_LOGINS.has(login.toLowerCase());
-}
-
-/** Test bots are memory-only while secret is on; never treat as real session when secret is off. */
-function testLoginAllowed(): boolean {
-  return Boolean(TEST_SECRET);
-}
 
 const auth = new Auth({
   clientId: env("GITHUB_CLIENT_ID"),
@@ -115,41 +102,27 @@ const rooms = new Map<string, TableRoom>();
 function savePersist(): void {
   mkdirSync(DATA_DIR, { recursive: true });
   const lobbyStacks: Record<string, number> = {};
-  const lobbyIndexOut: Record<string, number> = {};
   for (const [login, seat] of lobbyIndex) {
-    if (isTestLogin(login)) continue; // bots never touch disk
     lobbyStacks[login] = lobbyBank.stack(seat);
-    lobbyIndexOut[login] = seat;
   }
   const players: PersistedState["players"] = {};
   for (const [login, meta] of playerMeta) {
-    if (isTestLogin(login)) continue;
     players[login] = { ...meta };
   }
   const state: PersistedState = {
     players,
-    lobbyIndex: lobbyIndexOut,
+    lobbyIndex: Object.fromEntries(lobbyIndex),
     lobbyStacks,
     lobbySeatSeq,
-    starClaimed: [...starClaimedSet].filter((l) => !isTestLogin(l)),
+    starClaimed: [...starClaimedSet],
   };
   writeFileSync(META_FILE, JSON.stringify(state), "utf8");
 }
 
 const starClaimedSet = new Set<string>();
 
-function purgeTestLoginsFromMemory(): void {
-  for (const login of [...lobbyIndex.keys()]) {
-    if (!isTestLogin(login)) continue;
-    lobbyIndex.delete(login);
-  }
-  for (const login of [...playerMeta.keys()]) {
-    if (!isTestLogin(login)) continue;
-    playerMeta.delete(login);
-  }
-  for (const login of [...starClaimedSet]) {
-    if (isTestLogin(login)) starClaimedSet.delete(login);
-  }
+function isBotLogin(login: string): boolean {
+  return /^bot[1-6]$/i.test(login);
 }
 
 function loadPersist(): void {
@@ -159,7 +132,7 @@ function loadPersist(): void {
     lobbySeatSeq = state.lobbySeatSeq ?? 0;
     let dirty = false;
     for (const [login, seat] of Object.entries(state.lobbyIndex ?? {})) {
-      if (isTestLogin(login)) {
+      if (isBotLogin(login)) {
         dirty = true;
         continue;
       }
@@ -168,28 +141,27 @@ function loadPersist(): void {
       lobbyBank.sit({ seat, githubLogin: login, stack });
     }
     for (const [login, meta] of Object.entries(state.players ?? {})) {
-      if (isTestLogin(login)) {
+      if (isBotLogin(login)) {
         dirty = true;
         continue;
       }
       playerMeta.set(login, meta);
     }
     for (const login of state.starClaimed ?? []) {
-      if (isTestLogin(login)) {
+      if (isBotLogin(login)) {
         dirty = true;
         continue;
       }
       starClaimedSet.add(login);
       starLedger.markClaimed(login);
     }
-    if (dirty) savePersist(); // rewrite file without bots
+    if (dirty) savePersist();
   } catch (e) {
     console.error("loadPersist failed", e);
   }
 }
 
 loadPersist();
-if (!testLoginAllowed()) purgeTestLoginsFromMemory();
 
 function rememberPlayer(
   githubLogin: string,
@@ -200,7 +172,7 @@ function rememberPlayer(
     avatarUrl: meta.avatarUrl || prev?.avatarUrl || avatarFor(githubLogin),
     accessToken: meta.accessToken || prev?.accessToken,
   });
-  if (!isTestLogin(githubLogin)) savePersist();
+  savePersist();
 }
 
 function avatarFor(login: string, explicit?: string): string {
@@ -217,16 +189,12 @@ function ensureLobbyWallet(githubLogin: string): number {
     stack: DEFAULT_TABLE_CONFIG.startingStack,
   });
   lobbyIndex.set(githubLogin, seat);
-  if (!isTestLogin(githubLogin)) savePersist();
+  savePersist();
   return seat;
 }
 
 function sessionFromRequest(req: IncomingMessage): PlayerCookie | null {
-  const player = readCookie(req);
-  if (!player) return null;
-  // Stale bot cookie after QA: pretend logged out so GitHub login is reachable
-  if (isTestLogin(player.githubLogin) && !testLoginAllowed()) return null;
-  return player;
+  return readCookie(req);
 }
 
 function createRoom(name?: string): TableRoom {
@@ -410,15 +378,9 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, path: string
   const method = req.method ?? "GET";
 
   if (method === "GET" && path === "/api/me") {
-    const raw = readCookie(req);
-    // Drop stale bot cookie when test mode is off
-    if (raw && isTestLogin(raw.githubLogin) && !testLoginAllowed()) {
-      clearSessionCookie(res);
-      send(res, 200, { loggedIn: false, loginUrl: `${PUBLIC_BASE}/login` });
-      return;
-    }
     const player = sessionFromRequest(req);
-    if (!player) {
+    if (!player || isBotLogin(player.githubLogin)) {
+      if (player && isBotLogin(player.githubLogin)) clearSessionCookie(res);
       send(res, 200, { loggedIn: false, loginUrl: `${PUBLIC_BASE}/login` });
       return;
     }
@@ -426,7 +388,6 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, path: string
     const meta = playerMeta.get(player.githubLogin);
     const at = playerTable(player.githubLogin);
     const hasToken = Boolean(accessTokenOf(player.githubLogin, player));
-    const testUser = isTestLogin(player.githubLogin);
     send(res, 200, {
       loggedIn: true,
       githubLogin: player.githubLogin,
@@ -434,11 +395,9 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, path: string
       chips: lobbyBank.stack(lobbyIndex.get(player.githubLogin)!),
       starGrantChips: DEFAULT_TABLE_CONFIG.starGrantChips,
       starGrantRepo: DEFAULT_TABLE_CONFIG.starGrantRepo,
-      starClaimed: testUser
-        ? true
-        : starClaimedSet.has(player.githubLogin) || starLedger.hasClaimed(player.githubLogin),
-      needsReauth: testUser ? false : !hasToken,
-      isTestUser: testUser,
+      starClaimed:
+        starClaimedSet.has(player.githubLogin) || starLedger.hasClaimed(player.githubLogin),
+      needsReauth: !hasToken,
       tableId: at?.tableId ?? null,
       seat: at?.seat ?? null,
     });
@@ -688,34 +647,9 @@ const server = createServer(async (req, res) => {
         send(res, 500, "GITHUB_CLIENT_ID missing", "text/plain");
         return;
       }
-      // Always clear prior session (incl. test bots) so GitHub OAuth can replace it
       clearSessionCookie(res);
       const loc = auth.authorizationUrl(randomBytes(8).toString("hex"));
       res.writeHead(302, { Location: loc });
-      res.end();
-      return;
-    }
-
-    // Temporary: https://…/holdem/dev/as?u=bot1&k=<HOLDEM_TEST_SECRET>
-    // Disabled when HOLDEM_TEST_SECRET is unset. Bots are memory-only (not in players.json).
-    if (req.method === "GET" && path === "/dev/as") {
-      if (!TEST_SECRET) {
-        send(res, 404, "not found", "text/plain");
-        return;
-      }
-      const k = url.searchParams.get("k") ?? "";
-      const u = (url.searchParams.get("u") ?? "").trim().toLowerCase();
-      if (!k || k !== TEST_SECRET || !TEST_LOGINS.has(u)) {
-        send(res, 403, "forbidden", "text/plain");
-        return;
-      }
-      const avatarUrl = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(u)}`;
-      rememberPlayer(u, { avatarUrl });
-      ensureLobbyWallet(u);
-      const seat = lobbyIndex.get(u)!;
-      lobbyBank.sit({ seat, githubLogin: u, stack: TEST_STACK });
-      setSessionCookie(res, { githubLogin: u, avatarUrl });
-      res.writeHead(302, { Location: `${PUBLIC_BASE}/` });
       res.end();
       return;
     }

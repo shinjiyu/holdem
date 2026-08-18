@@ -134,8 +134,6 @@ def main() -> None:
         f"HOLDEM_PORT={REMOTE_PORT}",
         "NODE_ENV=production",
     ]
-    if holdem_kv.get("HOLDEM_TEST_SECRET"):
-        env_lines.append(f"HOLDEM_TEST_SECRET={holdem_kv['HOLDEM_TEST_SECRET']}")
     with sftp.file(f"{REMOTE_DIR}.env.tmp", "w") as f:
         f.write("\n".join(env_lines) + "\n")
     sftp.close()

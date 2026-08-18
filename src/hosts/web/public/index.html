@@ -378,25 +378,19 @@
       auth.innerHTML = `<p>未登录</p><a href="${BASE}/login"><button class="primary">用 GitHub 登录</button></a>`;
       return;
     }
-    const claimed = me.isTestUser
-      ? '<span class="muted">测试号（不落盘）</span>'
-      : me.starClaimed
-        ? '<span class="muted">已领过加星奖励</span>'
-        : me.needsReauth
-          ? `<a href="${BASE}/login"><button class="warn">重新登录后才能领币</button></a>`
-          : `<button class="warn" id="btnStar">我已 star ${me.starGrantRepo}，领 ${me.starGrantChips} 币</button>`;
-    const switchGh = me.isTestUser
-      ? `<a href="${BASE}/login"><button class="primary">切换到 GitHub 登录</button></a>`
-      : '';
+    const claimed = me.starClaimed
+      ? '<span class="muted">已领过加星奖励</span>'
+      : me.needsReauth
+        ? `<a href="${BASE}/login"><button class="warn">重新登录后才能领币</button></a>`
+        : `<button class="warn" id="btnStar">我已 star ${me.starGrantRepo}，领 ${me.starGrantChips} 币</button>`;
     auth.innerHTML = `
       <div class="row">
         <img class="me-avatar" src="${me.avatarUrl}" alt="" />
         <div>
-          <div><strong>@${me.githubLogin}</strong>${me.isTestUser ? ' <span class="muted">测试</span>' : ''}</div>
+          <div><strong>@${me.githubLogin}</strong></div>
           <div class="muted">筹码：${me.chips}</div>
         </div>
         ${claimed}
-        ${switchGh}
         <a class="muted" href="https://github.com/${me.starGrantRepo}" target="_blank" rel="noopener">去加星 ↗</a>
         <button class="ghost" id="btnLogout">退出</button>
       </div>`;
