@@ -356,23 +356,50 @@ function requirePlayer(req: IncomingMessage, res: ServerResponse): PlayerCookie 
 }
 
 function lobbySnapshot() {
-  return [...rooms.values()].map((room) => {
+  const rows = [...rooms.values()].map((room) => {
     const seats = seatOccupants(room);
+    const occupied = seats.filter((s) => s.githubLogin).length;
+    const handActive = room.session.isHandActive();
+    let street: string = "idle";
+    let pot = 0;
+    let actorsSeat: number | null = null;
+    if (handActive) {
+      try {
+        street = room.session.dealer.street;
+        pot = room.session.betting.pot;
+        actorsSeat = room.session.getActorsSeat();
+      } catch {
+        street = "idle";
+      }
+    }
+    const status: "playing" | "waiting" | "empty" =
+      handActive ? "playing" : occupied > 0 ? "waiting" : "empty";
     return {
       id: room.id,
       name: room.name,
       maxSeats: MAX_SEATS,
-      occupied: seats.filter((s) => s.githubLogin).length,
+      occupied,
       seats,
-      street: (() => {
-        try {
-          return room.session.dealer.street;
-        } catch {
-          return "idle";
-        }
-      })(),
+      handActive,
+      street,
+      pot,
+      actorsSeat,
+      status,
     };
   });
+  // in-progress first, then waiting for players, empty last
+  const rank = (s: string) => (s === "playing" ? 0 : s === "waiting" ? 1 : 2);
+  rows.sort((a, b) => rank(a.status) - rank(b.status) || b.occupied - a.occupied);
+  return rows;
+}
+
+const SEED_TABLE_NAMES = new Set(["新手桌 A", "新手桌 B"]);
+
+function resetRoomEmpty(room: TableRoom): void {
+  const session = new TableSession();
+  room.session = session;
+  room.host = new WebTableHost(session, auth);
+  room.avatars = new Map();
 }
 
 async function handleApi(req: IncomingMessage, res: ServerResponse, path: string): Promise<void> {
@@ -506,7 +533,11 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, path: string
     room.session = session;
     room.host = host;
     room.avatars = avatars;
-    if (keep.length === 0) rooms.delete(tableId);
+    if (keep.length === 0) {
+      // Keep seed tables visible in lobby; drop only empty ad-hoc tables.
+      if (SEED_TABLE_NAMES.has(room.name)) resetRoomEmpty(room);
+      else rooms.delete(tableId);
+    }
     send(res, 200, { ok: true, chips: lobbyBank.stack(lobbySeat) });
     return;
   }
@@ -723,9 +754,15 @@ function serveStatic(res: ServerResponse, filePath: string): void {
   res.end(html);
 }
 
+function ensureSeedTables(): void {
+  const have = new Set([...rooms.values()].map((r) => r.name));
+  for (const name of SEED_TABLE_NAMES) {
+    if (!have.has(name)) createRoom(name);
+  }
+}
+
 // seed a couple empty tables so lobby isn't blank
-createRoom("新手桌 A");
-createRoom("新手桌 B");
+ensureSeedTables();
 
 const server = createServer(async (req, res) => {
   try {

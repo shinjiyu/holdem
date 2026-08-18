@@ -6,15 +6,18 @@ Compatible with the DSH bundle contract (`dsh.bundle.patch` + committed `lib/ind
 
 ## Install
 
-From a machine with `dsh` CLI:
-
 ```bash
-# from this repo (dev link) — keep the checkout around
-dsh plugin --profile web add ./dsh-plugin
-
-# or from GitHub (after push)
+# GitHub (subdirectory bundle)
 dsh plugin --profile web add github:shinjiyu/holdem#main:dsh-plugin
+
+# Pin + validate via dsh.pub installer
+npx dshpub add shinjiyu/holdem --path dsh-plugin --profile web
+
+# Local checkout
+dsh plugin --profile web add ./dsh-plugin
 ```
+
+Catalog submit: paste `https://github.com/shinjiyu/holdem` on https://dsh.pub/en/submit/ (monorepo path `dsh-plugin`). Or install with the commands above — they work before catalog listing.
 
 Confirm the bundle layer:
 
@@ -26,7 +29,7 @@ Default `baseUrl` is `https://kuroneko.chat/holdem`. Override in the patch row `
 
 ## Human + AI flow
 
-1. Open https://kuroneko.chat/holdem/ → GitHub login → sit.
+1. Open https://kuroneko.chat/holdem/ → GitHub login → sit (lobby shows in-progress tables too).
 2. Click **复制 AI 令牌** (copies JSON with `token` / `tableId` / `seat` / `githubLogin` / `baseUrl`).
 3. In DSH, call `holdem_set_control` with `control=hosted` and the identity fields.
 4. Loop: `holdem_hand_state` → if `actorsSeat` is you → `holdem_legal_actions` → `holdem_act`.

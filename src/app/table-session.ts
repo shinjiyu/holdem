@@ -62,6 +62,10 @@ export class TableSession {
     return this.handActive;
   }
 
+  getActorsSeat(): number | null {
+    return this.actorsSeat;
+  }
+
   sit(req: SitAtTableRequest): void {
     this.bank.sit({
       seat: req.seat,

@@ -24,8 +24,19 @@
     .seat .name { font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .seat img { width: 40px; height: 40px; border-radius: 50%; background: #1b3a28; object-fit: cover; }
     .tables { display: grid; gap: 0.75rem; }
-    .table-card h3 { margin: 0 0 0.5rem; }
+    .table-card h3 { margin: 0 0 0.5rem; display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: baseline; }
+    .table-card.playing { border-color: #ffd54f; box-shadow: 0 0 0 1px rgba(255, 213, 79, 0.25); }
+    .table-card.waiting { border-color: #66bb6a; }
+    .badge {
+      display: inline-block; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em;
+      padding: 0.12rem 0.45rem; border-radius: 999px; vertical-align: middle;
+    }
+    .badge.playing { background: #ff8f00; color: #1a1200; }
+    .badge.waiting { background: #2e7d32; color: #e8f5e9; }
+    .badge.empty { background: #37474f; color: #cfd8dc; }
+    .table-meta { margin: 0 0 0.55rem; font-size: 0.88rem; }
     .seats { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .seat.turn { outline: 2px solid #ffd54f; }
     .hidden { display: none !important; }
     .hosted .act { opacity: 0.35; pointer-events: none; }
 
@@ -424,24 +435,51 @@
     }
   }
 
+  function lobbyStatusLabel(t) {
+    const status = t.status || (t.handActive ? 'playing' : t.occupied > 0 ? 'waiting' : 'empty');
+    if (status === 'playing') {
+      const street = t.street || 'hand';
+      const pot = typeof t.pot === 'number' ? t.pot : 0;
+      return { status, badge: '进行中', meta: `${street} · 底池 ${pot} · ${t.occupied}/${t.maxSeats} 人` };
+    }
+    if (status === 'waiting') {
+      return { status, badge: '等人', meta: `${t.occupied}/${t.maxSeats} 人已入座 · 可加入空位` };
+    }
+    return { status: 'empty', badge: '空桌', meta: `0/${t.maxSeats} · 点空座位入座` };
+  }
+
   function renderLobby(tables) {
     viewMode = 'lobby';
     $('lobby').classList.remove('hidden');
     $('table').classList.add('hidden');
-    $('lobbyHint').textContent = `共 ${tables.length} 桌 · 点空座位入座`;
+    const playing = tables.filter((t) => (t.status || (t.handActive ? 'playing' : '')) === 'playing').length;
+    const waiting = tables.filter((t) => (t.status || '') === 'waiting' || (!t.handActive && t.occupied > 0)).length;
+    $('lobbyHint').textContent =
+      `共 ${tables.length} 桌` +
+      (playing ? ` · ${playing} 桌进行中` : '') +
+      (waiting ? ` · ${waiting} 桌等人` : '') +
+      ' · 有空位即可入座';
     const box = $('tables');
     box.innerHTML = '';
     for (const t of tables) {
+      const info = lobbyStatusLabel(t);
       const el = document.createElement('div');
-      el.className = 'card table-card';
-      el.innerHTML = `<h3>${t.name} <span class="muted">#${t.id} · ${t.occupied}/${t.maxSeats}</span></h3>`;
+      el.className = 'card table-card ' + info.status;
+      el.innerHTML =
+        `<h3>${escapeHtml(t.name)} <span class="badge ${info.status}">${info.badge}</span>` +
+        `<span class="muted">#${escapeHtml(t.id)}</span></h3>` +
+        `<div class="table-meta muted">${escapeHtml(info.meta)}</div>`;
       const seats = document.createElement('div');
       seats.className = 'seats';
       for (const s of t.seats) {
         const seat = document.createElement('div');
-        seat.className = 'seat ' + (s.githubLogin ? 'filled' : 'empty');
+        const onTurn = t.handActive && t.actorsSeat === s.seat;
+        seat.className = 'seat ' + (s.githubLogin ? 'filled' : 'empty') + (onTurn ? ' turn' : '');
         if (s.githubLogin) {
-          seat.innerHTML = `<img src="${s.avatarUrl}" alt=""/><div class="name">@${s.githubLogin}</div><div class="muted">#${s.seat}</div>`;
+          seat.innerHTML =
+            `<img src="${escapeAttr(s.avatarUrl)}" alt=""/>` +
+            `<div class="name">@${escapeHtml(s.githubLogin)}</div>` +
+            `<div class="muted">#${s.seat}${onTurn ? ' · 行动中' : ''}</div>`;
         } else {
           seat.innerHTML = `<div style="height:40px;line-height:40px">空</div><div class="name">座位 ${s.seat}</div>`;
           seat.onclick = () => joinTable(t.id, s.seat).catch((e) => showErr(e.message));
@@ -451,6 +489,15 @@
       el.appendChild(seats);
       box.appendChild(el);
     }
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    })[c]);
+  }
+  function escapeAttr(s) {
+    return escapeHtml(s).replace(/`/g, '&#96;');
   }
 
   async function refreshLobby() {
