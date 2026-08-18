@@ -1,0 +1,10 @@
+node_modules/
+coverage/
+dist/
+dist-test/
+*.log
+.DS_Store
+.vscode/
+.idea/
+doc/structurizr/.structurizr/
+doc/structurizr/workspace.json

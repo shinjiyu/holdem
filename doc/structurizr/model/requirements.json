@@ -1,0 +1,126 @@
+{
+  "schema": "adl.requirements.v1",
+  "description": "Feature set R. Engine-MVP first. R_U = unit|contract with non-empty tests. R_manual = R \\ R_U.",
+  "requirements": [
+    {
+      "id": "REQ-ADL-GATE",
+      "title": "ADL gate runnable; O(1) + R_manual explicit",
+      "component": "contracts",
+      "slice": "meta",
+      "ui": false,
+      "test_kind": "manual",
+      "tests": [],
+      "acceptance": "py scripts/adl_check.py exits 0; prints plugin out-degrees and R_manual"
+    },
+    {
+      "id": "REQ-CONTRACTS-TABLE",
+      "title": "Shared table DTOs + per-plugin ports under contracts/",
+      "component": "contracts",
+      "slice": "engine-mvp",
+      "ui": false,
+      "test_kind": "contract",
+      "tests": ["tests/contracts/shared-dto.test.ts"],
+      "acceptance": "contracts/shared holds Card, Action, Street, SeatView, LegalAction, HandResult; each plugin owns contracts/<id>/ only; no plugin imports another plugin"
+    },
+    {
+      "id": "REQ-LOGIC-HEADLESS",
+      "title": "Engine plugins run without host SDKs",
+      "component": "runtime",
+      "slice": "engine-mvp",
+      "ui": false,
+      "test_kind": "unit",
+      "tests": ["tests/headless-import-ban.test.ts"],
+      "acceptance": "src/{deck,evaluate,betting,dealer,bank,seat,runtime,app,config,contracts} do not import src/hosts or cursor/dsh/codex packages"
+    },
+    {
+      "id": "REQ-DECK-SHUFFLE",
+      "title": "52-card deck shuffle + deal hole/board via contracts",
+      "component": "deck",
+      "slice": "engine-mvp",
+      "ui": false,
+      "test_kind": "manual",
+      "tests": [],
+      "acceptance": "DealPort deals 2 hole cards per seated player then 3-1-1 board; seedable RNG; no host import"
+    },
+    {
+      "id": "REQ-EVALUATE-RANK",
+      "title": "7-card hand rank for NLHE showdown",
+      "component": "evaluate",
+      "slice": "engine-mvp",
+      "ui": false,
+      "test_kind": "manual",
+      "tests": [],
+      "acceptance": "EvaluatePort ranks 5-of-7; ties split pots via contracts; no import of betting/dealer"
+    },
+    {
+      "id": "REQ-BETTING-LEGAL",
+      "title": "Legal actions + pot / to-call / min-raise",
+      "component": "betting",
+      "slice": "engine-mvp",
+      "ui": false,
+      "test_kind": "manual",
+      "tests": [],
+      "acceptance": "BettingQuery returns fold/check/call/bet/raise/allin as legal; side pots later spec; config supplies blinds"
+    },
+    {
+      "id": "REQ-DEALER-STREET",
+      "title": "Street FSM: preflop → flop → turn → river → showdown",
+      "component": "dealer",
+      "slice": "engine-mvp",
+      "ui": false,
+      "test_kind": "manual",
+      "tests": [],
+      "acceptance": "Dealer advances only via contracts ports; never imports deck/betting/evaluate"
+    },
+    {
+      "id": "REQ-BANK-STACK",
+      "title": "Stacks, post blinds, settle pot",
+      "component": "bank",
+      "slice": "engine-mvp",
+      "ui": false,
+      "test_kind": "manual",
+      "tests": [],
+      "acceptance": "BankPort posts SB/BB from config; settle writes stack deltas; no host import"
+    },
+    {
+      "id": "REQ-SEAT-PORT",
+      "title": "SeatView in / ActionIntent out — player port",
+      "component": "seat",
+      "slice": "engine-mvp",
+      "ui": false,
+      "test_kind": "manual",
+      "tests": [],
+      "acceptance": "A seat never sees other hole cards; hosts consume SeatView; plugins do not import hosts"
+    },
+    {
+      "id": "REQ-HOST-CURSOR",
+      "title": "Cursor MCP adapter sits a seat",
+      "component": "hosts",
+      "slice": "embed",
+      "ui": false,
+      "test_kind": "manual",
+      "tests": [],
+      "acceptance": "src/hosts/cursor exposes hand_state / legal_actions / act; engine remains host-agnostic. See doc/design/HOST-EMBED.md"
+    },
+    {
+      "id": "REQ-HOST-DSH",
+      "title": "DeepSeek Harness plugin adapter sits a seat",
+      "component": "hosts",
+      "slice": "embed",
+      "ui": false,
+      "test_kind": "manual",
+      "tests": [],
+      "acceptance": "src/hosts/dsh is a dsh-plugin wrapping the same SeatView/ActionIntent contracts"
+    },
+    {
+      "id": "REQ-HOST-CODEX",
+      "title": "Codex / generic harness adapter sits a seat",
+      "component": "hosts",
+      "slice": "embed",
+      "ui": false,
+      "test_kind": "manual",
+      "tests": [],
+      "acceptance": "src/hosts/codex and src/hosts/cli speak the same JSON protocol; no extra plugin nodes"
+    }
+  ]
+}

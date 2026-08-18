@@ -1,0 +1,16 @@
+{
+  "name": "holdem",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Embeddable NLHE engine for Cursor / DeepSeek Harness / Codex / CLI",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "adl": "py scripts/adl_check.py"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vitest": "^2.1.9"
+  }
+}

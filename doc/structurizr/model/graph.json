@@ -1,0 +1,52 @@
+{
+  "schema": "adl.graph.v1",
+  "project": "holdem",
+  "description": "NLHE engine. Plugins: out ≤ K, no plugin→plugin. Hosts are compose, not plugins.",
+  "K": 2,
+  "hand_order": [
+    "dealer.advance",
+    "deck.deal",
+    "betting.collect",
+    "evaluate.showdown",
+    "bank.settle",
+    "seat.present"
+  ],
+  "nodes": [
+    { "id": "contracts", "role": "contracts", "path": "src/contracts/" },
+    { "id": "config", "role": "infra", "path": "src/config/" },
+    { "id": "app", "role": "compose", "path": "src/app/" },
+    { "id": "runtime", "role": "compose", "path": "src/runtime/" },
+    { "id": "hosts", "role": "compose", "path": "src/hosts/" },
+    { "id": "deck", "role": "plugin", "path": "src/deck/" },
+    { "id": "evaluate", "role": "plugin", "path": "src/evaluate/" },
+    { "id": "betting", "role": "plugin", "path": "src/betting/" },
+    { "id": "dealer", "role": "plugin", "path": "src/dealer/" },
+    { "id": "bank", "role": "plugin", "path": "src/bank/" },
+    { "id": "seat", "role": "plugin", "path": "src/seat/" }
+  ],
+  "edges": [
+    { "from": "deck", "to": "contracts", "kind": "implements" },
+    { "from": "evaluate", "to": "contracts", "kind": "implements" },
+    { "from": "betting", "to": "contracts", "kind": "implements" },
+    { "from": "betting", "to": "config", "kind": "uses" },
+    { "from": "dealer", "to": "contracts", "kind": "implements" },
+    { "from": "dealer", "to": "config", "kind": "uses" },
+    { "from": "bank", "to": "contracts", "kind": "implements" },
+    { "from": "bank", "to": "config", "kind": "uses" },
+    { "from": "seat", "to": "contracts", "kind": "implements" },
+    { "from": "app", "to": "runtime", "kind": "uses" },
+    { "from": "app", "to": "config", "kind": "uses" },
+    { "from": "app", "to": "contracts", "kind": "wires" },
+    { "from": "app", "to": "hosts", "kind": "wires" },
+    { "from": "runtime", "to": "contracts", "kind": "dispatches" },
+    { "from": "runtime", "to": "config", "kind": "uses" },
+    { "from": "hosts", "to": "contracts", "kind": "adapts" },
+    { "from": "hosts", "to": "runtime", "kind": "uses" }
+  ],
+  "notes": [
+    "No plugin→plugin. Dealer never imports betting/deck; it talks DealPort / BettingQuery / StreetEvent on the bus.",
+    "seat is the player port (SeatView in, ActionIntent out). Cursor/DSH/Codex/CLI are hosts compose, not plugins.",
+    "Do not add a 'blinds' or 'side-pot' plugin — those live in betting + config.",
+    "Host SDKs (cursor, dsh, @openai/codex) may only be imported from src/hosts/<id>/."
+  ]
+}
