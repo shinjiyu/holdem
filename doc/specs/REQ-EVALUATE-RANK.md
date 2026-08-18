@@ -2,8 +2,8 @@
 id: REQ-EVALUATE-RANK
 module: evaluate
 role: module
-status: ready
-agent: unassigned
+status: claimed
+agent: eval-bot
 owns_paths:
   - src/contracts/evaluate/**
   - src/evaluate/**
