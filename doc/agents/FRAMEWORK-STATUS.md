@@ -4,35 +4,32 @@
 
 | 检查 | 结果 |
 |------|------|
-| `py scripts/adl_check.py` | OK（K=2，\|R_U\|=10，\|R_manual\|=4） |
-| `npm test` | 72 passed |
+| `py scripts/adl_check.py` | OK（K=2；R_manual 仅剩 STAR-GRANT + ADL-GATE） |
+| `npm test` | 79 passed |
 
 ## Shipped
 
 | 项 | 状态 |
 |----|------|
 | ADL + 产品设计（托管 / 加星 / kuroneko.chat） | ✅ |
-| REQ-DECK-SHUFFLE | ✅ |
-| Wave 1：evaluate / betting / bank / seat / auth | ✅ |
-| REQ-DEALER-STREET | ✅ |
-| REQ-TABLE-SESSION | ✅ 无 UI 一手可测 |
+| Engine：deck → evaluate/betting/bank/seat → dealer → table-session | ✅ |
+| REQ-AUTH-GITHUB | ✅ |
+| REQ-WEB-TABLE | ✅ 人控点完一手；hosted 只留收回 |
+| REQ-AGENT-PLAY | ✅ 桌令牌 act；CLI JSON；禁 DOM 验收 |
 | Issue 拆分（spec 看板） | ✅ `doc/specs/README.md` |
 
-## 可认领（wave 4，路径互斥）
+## 可认领
 
 | spec | role | Issue |
 |------|------|-------|
-| REQ-WEB-TABLE | integrator | #8 `src/hosts/web/**` |
-| REQ-AGENT-PLAY | integrator | #9 `src/hosts/agent/**` + cli |
-
-STAR-GRANT 仍 blocked：等 H5 claim 按钮。
+| REQ-STAR-GRANT | integrator | #10（auth 查星 + `BankPort.grant` + H5 claim） |
 
 ## 角色启用
 
 | 角色 | 状态 |
 |------|------|
 | lead | ✅ |
-| module | ✅ engine plugins 已合 |
-| integrator | ✅ 可认领 WEB / AGENT |
+| module | ✅ engine 已合 |
+| integrator | ✅ STAR 可认领 |
 | designer | ⏸ |
 | reviewer | ⏸ |
