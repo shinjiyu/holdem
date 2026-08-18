@@ -7,9 +7,15 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "adl": "py scripts/adl_check.py"
+    "adl": "py scripts/adl_check.py",
+    "start": "tsx src/hosts/web/server.ts",
+    "start:web": "tsx src/hosts/web/server.ts"
+  },
+  "dependencies": {
+    "tsx": "^4.20.5"
   },
   "devDependencies": {
+    "@types/node": "^26.2.0",
     "typescript": "^5.9.2",
     "vitest": "^2.1.9"
   }

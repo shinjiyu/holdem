@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>holdem @ kuroneko</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { font-family: system-ui, sans-serif; margin: 0; background: #0b1a12; color: #e8f5e9; }
+    main { max-width: 720px; margin: 0 auto; padding: 1rem; }
+    button { margin: 0.2rem; padding: 0.45rem 0.8rem; border-radius: 6px; border: 0; cursor: pointer; }
+    button.primary { background: #2e7d32; color: #fff; }
+    button.act { background: #1b5e20; color: #fff; }
+    button.warn { background: #ef6c00; color: #fff; }
+    .card { background: #12261a; border: 1px solid #2e4a38; border-radius: 10px; padding: 0.75rem 1rem; margin: 0.75rem 0; }
+    .muted { color: #9ccc9c; font-size: 0.9rem; }
+    #error { color: #ff8a80; white-space: pre-wrap; }
+    .hosted .act { opacity: 0.35; pointer-events: none; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>holdem</h1>
+  <p class="muted">GitHub 登录必须在顶层窗口（不要塞进 iframe）。两人各登各的号，坐下后即可开一手。</p>
+  <div id="auth" class="card">检查登录…</div>
+  <div id="table" class="card" hidden>
+    <div id="status"></div>
+    <div id="board"></div>
+    <div id="hole"></div>
+    <div id="pot"></div>
+    <div id="actions"></div>
+    <div id="result"></div>
+  </div>
+  <pre id="error"></pre>
+</main>
+<script>
+  const BASE = location.pathname.startsWith('/holdem') ? '/holdem' : '';
+  const $ = (id) => document.getElementById(id);
+  function showErr(e) { $('error').textContent = e || ''; }
+
+  async function api(path, opts) {
+    const res = await fetch(BASE + path, {
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      ...opts,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    return data;
+  }
+
+  function card(c) { return (c.rank || '?') + (c.suit || ''); }
+
+  function renderView(payload) {
+    const v = payload.view;
+    if (!v) return;
+    document.body.classList.toggle('hosted', v.you.control === 'hosted');
+    $('status').textContent =
+      `@${v.you.githubLogin} seat=${v.seat} street=${v.street} control=${v.you.control} stack=${v.stack}`;
+    $('board').textContent = 'board: ' + (v.board || []).map(card).join(' ') || '(none)';
+    $('hole').textContent = 'hole: ' + (v.hole || []).map(card).join(' ');
+    $('pot').textContent = `pot=${v.pot} toCall=${v.toCall}`;
+    const box = $('actions');
+    box.innerHTML = '';
+
+    const sitBtn = document.createElement('button');
+    sitBtn.className = 'primary';
+    sitBtn.textContent = '坐下 / 刷新';
+    sitBtn.onclick = () => sit().catch((e) => showErr(e.message));
+    box.appendChild(sitBtn);
+
+    const start = document.createElement('button');
+    start.className = 'primary';
+    start.textContent = '开一手';
+    start.onclick = () => api('/api/start', { method: 'POST', body: '{}' }).then(refresh).catch((e) => showErr(e.message));
+    box.appendChild(start);
+
+    if (v.you.control === 'hosted') {
+      const back = document.createElement('button');
+      back.className = 'warn';
+      back.textContent = '收回控制';
+      back.onclick = () => api('/api/control', { method: 'POST', body: JSON.stringify({ control: 'manual' }) }).then(refresh).catch((e) => showErr(e.message));
+      box.appendChild(back);
+    } else {
+      const host = document.createElement('button');
+      host.textContent = '托管给 AI';
+      host.onclick = () => api('/api/control', { method: 'POST', body: JSON.stringify({ control: 'hosted' }) }).then(refresh).catch((e) => showErr(e.message));
+      box.appendChild(host);
+
+      for (const a of (payload.legal || v.legal || [])) {
+        const b = document.createElement('button');
+        b.className = 'act';
+        b.textContent = a.kind + (a.min != null ? ` (${a.min})` : '');
+        b.onclick = () => api('/api/act', {
+          method: 'POST',
+          body: JSON.stringify({ intent: { kind: a.kind, amount: a.min } }),
+        }).then(refresh).catch((e) => showErr(e.message));
+        box.appendChild(b);
+      }
+    }
+
+    const next = document.createElement('button');
+    next.textContent = '下一街';
+    next.onclick = () => api('/api/advance', { method: 'POST', body: '{}' }).then(refresh).catch((e) => showErr(e.message));
+    box.appendChild(next);
+
+    const reset = document.createElement('button');
+    reset.textContent = '重置桌子';
+    reset.onclick = () => api('/api/reset', { method: 'POST', body: '{}' }).then(boot).catch((e) => showErr(e.message));
+    box.appendChild(reset);
+
+    if (payload.result) {
+      $('result').textContent = 'HandResult: ' + JSON.stringify(payload.result);
+    } else {
+      $('result').textContent = '';
+    }
+  }
+
+  async function refresh() {
+    showErr('');
+    const data = await api('/api/view');
+    renderView(data);
+  }
+
+  async function sit() {
+    showErr('');
+    await api('/api/sit', { method: 'POST', body: '{}' });
+    await refresh();
+  }
+
+  async function boot() {
+    showErr('');
+    const me = await api('/api/me');
+    const auth = $('auth');
+    if (!me.loggedIn) {
+      auth.innerHTML = `<p>未登录</p><a class="primary" href="${BASE}/login"><button class="primary">用 GitHub 登录</button></a>`;
+      $('table').hidden = true;
+      return;
+    }
+    auth.innerHTML = `<p>已登录：<strong>@${me.githubLogin}</strong></p>`;
+    $('table').hidden = false;
+    if (me.seat == null) await sit();
+    else await refresh();
+  }
+
+  boot().catch((e) => showErr(e.message));
+  setInterval(() => {
+    if (!$('table').hidden) refresh().catch(() => {});
+  }, 2500);
+</script>
+</body>
+</html>
