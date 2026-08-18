@@ -2,7 +2,7 @@
 id: REQ-SEAT-PORT
 module: seat
 role: module
-status: claimed
+status: impl-green
 agent: seat-bot
 owns_paths:
   - src/contracts/seat/**
@@ -24,7 +24,7 @@ last_updated: 2026-08-18
 - component: seat
 - role: module
 - test_kind: unit
-- status: claimed
+- status: impl-green
 
 ## 目标
 一个座位 = 一个 `githubLogin`。`control` 人控/托管互斥。`SeatView` 不含别人底牌。
@@ -33,6 +33,7 @@ last_updated: 2026-08-18
 - `sit({ seat, githubLogin })`
 - `setControl({ seat, control: "manual" | "hosted" })`
 - `view({ seat })` → SeatView（测试里用假 githubLogin，不接 OAuth）
+- `setHole({ seat, cards })` — compose/测试按座位写入底牌；`view` 只返回该座
 
 ## Out
 - 默认 `control=manual`
@@ -54,10 +55,10 @@ last_updated: 2026-08-18
 - 一个座位两个 githubLogin
 
 ## 验收
-- [ ] 座位 A 的 view.hole 看不到座位 B 的底牌（compose 测可先只测 seat 存储隔离）
-- [ ] 默认 manual；hosted 后再 setControl(manual) 收回
-- [ ] 不 import hosts / auth
-- [ ] `py scripts/adl_check.py` exit 0
+- [x] 座位 A 的 view.hole 看不到座位 B 的底牌（compose 测可先只测 seat 存储隔离）
+- [x] 默认 manual；hosted 后再 setControl(manual) 收回
+- [x] 不 import hosts / auth
+- [x] `py scripts/adl_check.py` exit 0
 
 ## 冲突预检 conflict_check
 - [x] 与其它 ready Issue 的 owns_paths 无交集
