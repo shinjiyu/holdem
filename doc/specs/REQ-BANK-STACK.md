@@ -2,8 +2,8 @@
 id: REQ-BANK-STACK
 module: bank
 role: module
-status: ready
-agent: unassigned
+status: claimed
+agent: bank-bot
 owns_paths:
   - src/contracts/bank/**
   - src/bank/**
@@ -24,7 +24,7 @@ last_updated: 2026-08-18
 - component: bank
 - role: module
 - test_kind: unit
-- status: ready
+- status: claimed
 
 ## 目标
 座位筹码：发盲注、按摊牌结果加减、以及 **一次性格 grant**（给加星发币用，compose 才调用）。
