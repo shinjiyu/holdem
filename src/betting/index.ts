@@ -42,10 +42,19 @@ export class BettingPlugin implements HeadlessPlugin, BettingQuery {
     return this._pot;
   }
 
+  /** Highest single-seat commitment this street. */
+  get streetBet(): number {
+    return this.currentBet;
+  }
+
   toCall(seat: number): number {
     const s = this.seats.get(seat);
     if (!s) return 0;
     return Math.max(0, this.currentBet - s.committed);
+  }
+
+  committed(seat: number): number {
+    return this.seats.get(seat)?.committed ?? 0;
   }
 
   legal(seat: number): LegalAction[] {

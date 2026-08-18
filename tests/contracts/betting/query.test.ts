@@ -9,6 +9,8 @@ describe("BettingQuery contract", () => {
     expect(q.legal(0).length).toBeGreaterThan(0);
     expect(typeof q.pot).toBe("number");
     expect(typeof q.toCall(0)).toBe("number");
+    expect(typeof q.committed(0)).toBe("number");
+    expect(typeof q.streetBet).toBe("number");
     q.apply(0, { kind: "check" });
     expect(q.pot).toBe(0);
   });

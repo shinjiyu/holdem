@@ -80,6 +80,8 @@ interface SeatInfo {
   seat: number;
   githubLogin: string | null;
   avatarUrl: string | null;
+  /** Chips put in on the current betting street (0 if empty / idle). */
+  streetBet: number;
 }
 
 interface TableRoom {
@@ -248,15 +250,19 @@ function getRoom(tableId: string): TableRoom | null {
 function seatOccupants(room: TableRoom): SeatInfo[] {
   const out: SeatInfo[] = [];
   for (let seat = 0; seat < MAX_SEATS; seat++) {
+    const streetBet = room.session.isHandActive()
+      ? room.session.betting.committed(seat)
+      : 0;
     try {
       const occ = room.session.seat.view({ seat });
       out.push({
         seat,
         githubLogin: occ.you.githubLogin,
         avatarUrl: room.avatars.get(occ.you.githubLogin) ?? avatarFor(occ.you.githubLogin),
+        streetBet,
       });
     } catch {
-      out.push({ seat, githubLogin: null, avatarUrl: null });
+      out.push({ seat, githubLogin: null, avatarUrl: null, streetBet: 0 });
     }
   }
   return out;
@@ -274,6 +280,19 @@ function firstFreeSeat(room: TableRoom): number | null {
     if (!s.githubLogin) return s.seat;
   }
   return null;
+}
+
+function tablePayload(room: TableRoom, seat: number): Record<string, unknown> {
+  const active = room.session.isHandActive();
+  return {
+    tableId: room.id,
+    seats: seatOccupants(room),
+    handActive: active,
+    streetBet: active ? room.session.betting.streetBet : 0,
+    view: room.host.view(seat),
+    result: room.host.result(),
+    legal: room.host.legal(seat),
+  };
 }
 
 function playerTable(githubLogin: string): { tableId: string; seat: number } | null {
@@ -590,9 +609,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, path: string
       });
       send(res, 200, {
         ok: true,
-        handActive: ctx.room.session.isHandActive(),
-        view: ctx.room.host.view(ctx.seat),
-        legal: ctx.room.host.legal(ctx.seat),
+        ...tablePayload(ctx.room, ctx.seat),
       });
     } catch (e) {
       send(res, 400, { error: e instanceof Error ? e.message : String(e) });
@@ -603,14 +620,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, path: string
   if (method === "GET" && path === "/api/view") {
     const ctx = await needTable();
     if (!ctx) return;
-    send(res, 200, {
-      tableId: ctx.room.id,
-      seats: seatOccupants(ctx.room),
-      handActive: ctx.room.session.isHandActive(),
-      view: ctx.room.host.view(ctx.seat),
-      result: ctx.room.host.result(),
-      legal: ctx.room.host.legal(ctx.seat),
-    });
+    send(res, 200, tablePayload(ctx.room, ctx.seat));
     return;
   }
 
@@ -619,14 +629,8 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, path: string
     if (!ctx) return;
     const body = await readJson<{ intent: ActionIntent }>(req);
     try {
-      const view = ctx.room.host.clickAct({ seat: ctx.seat, intent: body.intent });
-      send(res, 200, {
-        handActive: ctx.room.session.isHandActive(),
-        view,
-        legal: ctx.room.host.legal(ctx.seat),
-        result: ctx.room.host.result(),
-        seats: seatOccupants(ctx.room),
-      });
+      ctx.room.host.clickAct({ seat: ctx.seat, intent: body.intent });
+      send(res, 200, tablePayload(ctx.room, ctx.seat));
     } catch (e) {
       send(res, 400, { error: e instanceof Error ? e.message : String(e) });
     }
@@ -638,13 +642,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, path: string
     if (!ctx) return;
     try {
       ctx.room.host.advanceStreet();
-      send(res, 200, {
-        handActive: ctx.room.session.isHandActive(),
-        view: ctx.room.host.view(ctx.seat),
-        result: ctx.room.host.result(),
-        legal: ctx.room.host.legal(ctx.seat),
-        seats: seatOccupants(ctx.room),
-      });
+      send(res, 200, tablePayload(ctx.room, ctx.seat));
     } catch (e) {
       send(res, 400, { error: e instanceof Error ? e.message : String(e) });
     }

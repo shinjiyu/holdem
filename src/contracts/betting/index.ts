@@ -20,4 +20,8 @@ export interface BettingQuery {
   apply(seat: number, intent: ActionIntent): void;
   readonly pot: number;
   toCall(seat: number): number;
+  /** Chips already put in on the current street (blinds/bets/raises). */
+  committed(seat: number): number;
+  /** Highest commitment on the current street. */
+  readonly streetBet: number;
 }

@@ -158,6 +158,19 @@
       color: #fff9c4;
       margin-top: 0.15rem;
     }
+    .felt-seat .bet-chip {
+      margin-top: 0.25rem;
+      display: inline-block;
+      min-width: 2.2rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 999px;
+      background: #c62828;
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .felt-seat .bet-chip.zero { visibility: hidden; }
     .felt-seat .hole-mini {
       display: flex;
       justify-content: center;
@@ -271,14 +284,20 @@
     return data;
   }
 
+  function suitGlyph(suit) {
+    const map = { c: '♣', d: '♦', h: '♥', s: '♠', '♣': '♣', '♦': '♦', '♥': '♥', '♠': '♠' };
+    return map[suit] || suit || '';
+  }
+
   function suitRed(suit) {
-    return suit === 'h' || suit === 'd' || suit === '♥' || suit === '♦';
+    const g = suitGlyph(suit);
+    return g === '♥' || g === '♦' || suit === 'h' || suit === 'd';
   }
 
   function cardEl(c) {
     const el = document.createElement('span');
     el.className = 'pcard' + (suitRed(c.suit) ? ' red' : '');
-    el.textContent = (c.rank || '?') + (c.suit || '');
+    el.textContent = (c.rank || '?') + suitGlyph(c.suit);
     return el;
   }
 
@@ -457,12 +476,15 @@
     } else {
       for (const c of cards) board.appendChild(cardEl(c));
     }
-    $('pot').innerHTML = `底池 ${v?.pot ?? 0}<small>跟注 ${v?.toCall ?? 0}</small>`;
+    $('pot').innerHTML =
+      `底池 ${v?.pot ?? 0}<small>跟注 ${v?.toCall ?? 0}` +
+      (payload.streetBet != null ? ` · 本街注 ${payload.streetBet}` : '') +
+      `</small>`;
 
     for (let i = 0; i < 6; i++) {
       const el = $('felt').querySelector(`.felt-seat[data-i="${i}"]`);
       if (!el) continue;
-      const s = seats.find((x) => x.seat === i) || { seat: i, githubLogin: null, avatarUrl: null };
+      const s = seats.find((x) => x.seat === i) || { seat: i, githubLogin: null, avatarUrl: null, streetBet: 0 };
       const isYou = mySeat === i;
       const isActor = actor === i;
       el.className = 'felt-seat'
@@ -473,16 +495,21 @@
       if (isYou) tagText = '你';
       else if (isActor) tagText = '行动';
       const tag = `<span class="tag">${tagText}</span>`;
+      const bet = Number(s.streetBet) || 0;
+      const betHtml = `<div class="bet-chip${bet > 0 ? '' : ' zero'}">${bet}</div>`;
       if (s.githubLogin) {
         let holeHtml = '';
         if (isYou && v?.hole?.length) {
           holeHtml = '<div class="hole-mini"></div>';
         }
-        const stackTxt = isYou && v?.stack != null ? `<div class="stack">${v.stack}</div>` : '';
+        const stackTxt = isYou && v?.stack != null
+          ? `<div class="stack">剩余 ${v.stack}</div>`
+          : '';
         el.innerHTML = `${tag}<div class="bubble">
           <img src="${s.avatarUrl}" alt=""/>
           <div class="name">@${s.githubLogin}</div>
           ${stackTxt}
+          ${betHtml}
           ${holeHtml}
         </div>`;
         if (isYou && v?.hole?.length) {
@@ -490,7 +517,7 @@
           for (const c of v.hole) mini.appendChild(cardEl(c));
         }
       } else {
-        el.innerHTML = `${tag}<div class="bubble"><div class="name">空位</div></div>`;
+        el.innerHTML = `${tag}<div class="bubble"><div class="name">空位</div>${betHtml}</div>`;
       }
     }
   }
