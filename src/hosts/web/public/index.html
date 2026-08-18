@@ -84,6 +84,66 @@
     }
     .felt-pot small { display: block; font-weight: 400; color: #c8e6c9; font-size: 0.8rem; margin-top: 0.15rem; }
 
+    .felt-settle {
+      display: none;
+      margin-top: 0.55rem;
+      padding: 0.55rem 0.75rem 0.65rem;
+      border-radius: 12px;
+      background: rgba(8, 20, 12, 0.88);
+      border: 1px solid rgba(255, 213, 79, 0.55);
+      box-shadow: 0 0 0 1px rgba(255, 213, 79, 0.15), 0 8px 24px rgba(0,0,0,.35);
+      min-width: 200px;
+    }
+    .felt-settle.show { display: block; }
+    .felt-settle .settle-title {
+      font-size: 0.78rem;
+      letter-spacing: 0.12em;
+      color: #ffe082;
+      margin-bottom: 0.35rem;
+    }
+    .felt-settle .settle-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      margin: 0.25rem 0;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #fffde7;
+    }
+    .felt-settle .settle-row img {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: #1b3a28;
+    }
+    .felt-settle .settle-amt {
+      color: #ffd54f;
+      font-variant-numeric: tabular-nums;
+    }
+    .felt-settle .settle-sub {
+      margin-top: 0.3rem;
+      font-size: 0.75rem;
+      color: #a5d6a7;
+      font-weight: 400;
+    }
+
+    .felt-seat.winner .bubble {
+      border-color: #ffd54f;
+      box-shadow: 0 0 0 2px rgba(255, 213, 79, 0.45), 0 4px 14px rgba(0,0,0,.4);
+    }
+    .felt-seat.winner .tag {
+      background: #f9a825;
+      color: #212121;
+    }
+    .felt-seat .win-amt {
+      margin-top: 0.2rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #ffd54f;
+    }
+
     .pcard {
       display: inline-flex;
       align-items: center;
@@ -254,12 +314,12 @@
         <div class="felt-street" id="streetLabel">—</div>
         <div class="felt-board" id="board"></div>
         <div class="felt-pot" id="pot">底池 —</div>
+        <div class="felt-settle" id="settleBanner"></div>
       </div>
       <!-- seats injected -->
     </div>
     <div id="turnHint"></div>
     <div class="actions-bar" id="actions"></div>
-    <div id="result"></div>
   </section>
 
   <pre id="error"></pre>
@@ -470,8 +530,11 @@
     const mySeat = v?.seat;
     const seats = payload.seats || [];
     const actor = v?.actorsSeat;
+    const result = payload.result;
+    const winnerMap = new Map((result?.winners || []).map((w) => [w.seat, w.amount]));
+    const settled = Boolean(result?.winners?.length);
 
-    $('streetLabel').textContent = v?.street || 'waiting';
+    $('streetLabel').textContent = settled ? 'SHOWDOWN' : (v?.street || 'waiting');
     const board = $('board');
     board.innerHTML = '';
     const cards = v?.board || [];
@@ -480,38 +543,54 @@
     } else {
       for (const c of cards) board.appendChild(cardEl(c));
     }
-    $('pot').innerHTML =
-      `底池 ${v?.pot ?? 0}<small>跟注 ${v?.toCall ?? 0}` +
-      (payload.streetBet != null ? ` · 本街注 ${payload.streetBet}` : '') +
-      `</small>`;
+
+    const potEl = $('pot');
+    if (settled) {
+      potEl.innerHTML = `底池已结算<small>共 ${v?.pot ?? result.winners.reduce((n, w) => n + w.amount, 0)}</small>`;
+    } else {
+      potEl.innerHTML =
+        `底池 ${v?.pot ?? 0}<small>跟注 ${v?.toCall ?? 0}` +
+        (payload.streetBet != null ? ` · 本街注 ${payload.streetBet}` : '') +
+        `</small>`;
+    }
+
+    renderSettleBanner(payload);
 
     for (let i = 0; i < 6; i++) {
       const el = $('felt').querySelector(`.felt-seat[data-i="${i}"]`);
       if (!el) continue;
       const s = seats.find((x) => x.seat === i) || { seat: i, githubLogin: null, avatarUrl: null, streetBet: 0 };
       const isYou = mySeat === i;
-      const isActor = actor === i;
+      const isActor = !settled && actor === i;
+      const winAmt = winnerMap.get(i);
+      const isWinner = winAmt != null;
       el.className = 'felt-seat'
         + (s.githubLogin ? ' filled' : ' empty')
         + (isYou ? ' you' : '')
-        + (isActor ? ' actor' : '');
+        + (isActor ? ' actor' : '')
+        + (isWinner ? ' winner' : '');
       let tagText = `#${i}`;
-      if (isYou) tagText = '你';
+      if (isWinner) tagText = '胜';
+      else if (isYou) tagText = '你';
       else if (isActor) tagText = '行动';
       const tag = `<span class="tag">${tagText}</span>`;
       const bet = Number(s.streetBet) || 0;
-      const betHtml = `<div class="bet-chip${bet > 0 ? '' : ' zero'}">${bet}</div>`;
+      const betHtml = settled
+        ? ''
+        : `<div class="bet-chip${bet > 0 ? '' : ' zero'}">${bet}</div>`;
       if (s.githubLogin) {
-        const shown = (payload.result?.shown || []).find((x) => x.seat === i);
+        const shown = (result?.shown || []).find((x) => x.seat === i);
         const holeCards = isYou ? (v?.hole || []) : (shown?.hole || []);
-        let holeHtml = holeCards.length ? '<div class="hole-mini"></div>' : '';
+        const holeHtml = holeCards.length ? '<div class="hole-mini"></div>' : '';
         const stackTxt = isYou && v?.stack != null
           ? `<div class="stack">剩余 ${v.stack}</div>`
           : '';
+        const winHtml = isWinner ? `<div class="win-amt">+${winAmt}</div>` : '';
         el.innerHTML = `${tag}<div class="bubble">
           <img src="${s.avatarUrl}" alt=""/>
           <div class="name">@${s.githubLogin}</div>
           ${stackTxt}
+          ${winHtml}
           ${betHtml}
           ${holeHtml}
         </div>`;
@@ -523,6 +602,29 @@
         el.innerHTML = `${tag}<div class="bubble"><div class="name">空位</div>${betHtml}</div>`;
       }
     }
+  }
+
+  function renderSettleBanner(payload) {
+    const banner = $('settleBanner');
+    const result = payload.result;
+    if (!result?.winners?.length) {
+      banner.classList.remove('show');
+      banner.innerHTML = '';
+      return;
+    }
+    const seats = payload.seats || [];
+    const rows = result.winners.map((w) => {
+      const who = seats.find((s) => s.seat === w.seat);
+      const name = who?.githubLogin ? `@${who.githubLogin}` : `#${w.seat}`;
+      const av = who?.avatarUrl
+        ? `<img src="${who.avatarUrl}" alt=""/>`
+        : '';
+      return `<div class="settle-row">${av}<span>${name}</span><span class="settle-amt">+${w.amount}</span></div>`;
+    }).join('');
+    banner.innerHTML =
+      `<div class="settle-title">摊牌结算</div>${rows}` +
+      `<div class="settle-sub">底牌已翻开 · 可再开一手</div>`;
+    banner.classList.add('show');
   }
 
   function renderView(payload) {
@@ -560,8 +662,6 @@
         box.appendChild(b);
       }
     }
-
-    $('result').textContent = payload.result ? formatResult(payload.result) : '';
   }
 
   function formatResult(result) {
@@ -571,7 +671,7 @@
       const name = who?.githubLogin ? `@${who.githubLogin}` : `#${w.seat}`;
       return `${name} +${w.amount}`;
     });
-    return `摊牌结算：${parts.join('，')} · 可再开一手`;
+    return `摊牌结算：${parts.join('，')}`;
   }
 
   function secondsLeft(deadlineMs) {
@@ -588,9 +688,7 @@
     const sec = secondsLeft(v.actionDeadlineMs);
     const clock = sec != null ? ` · ${sec}s` : '';
     if (!handActive) {
-      hint.textContent = payload.result
-        ? formatResult(payload.result)
-        : '人齐后点「开一手」';
+      hint.textContent = payload.result ? '可再开一手' : '人齐后点「开一手」';
       return;
     }
     if (myTurn) {
