@@ -2,7 +2,7 @@
 id: REQ-BANK-STACK
 module: bank
 role: module
-status: claimed
+status: impl-green
 agent: bank-bot
 owns_paths:
   - src/contracts/bank/**
@@ -24,7 +24,7 @@ last_updated: 2026-08-18
 - component: bank
 - role: module
 - test_kind: unit
-- status: claimed
+- status: impl-green
 
 ## 目标
 座位筹码：发盲注、按摊牌结果加减、以及 **一次性格 grant**（给加星发币用，compose 才调用）。
@@ -53,11 +53,11 @@ last_updated: 2026-08-18
 - 改 config 里的 `starGrantChips`（已有）
 
 ## 验收
-- [ ] 下 SB/BB 后两座位 stack 减少、pot 增加（pot 可只在 betting，或 bank 记 committed；测 stack 即可）
-- [ ] settle 把金额加到赢家
-- [ ] grant 增加该帐号座位的 stack
-- [ ] 不 import auth / hosts / 其它 plugin
-- [ ] `py scripts/adl_check.py` exit 0
+- [x] 下 SB/BB 后两座位 stack 减少、pot 增加（pot 可只在 betting，或 bank 记 committed；测 stack 即可）
+- [x] settle 把金额加到赢家
+- [x] grant 增加该帐号座位的 stack
+- [x] 不 import auth / hosts / 其它 plugin
+- [x] `py scripts/adl_check.py` exit 0
 
 ## 冲突预检 conflict_check
 - [x] 与其它 ready Issue 的 owns_paths 无交集
