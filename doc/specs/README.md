@@ -15,7 +15,7 @@ GitHub：https://github.com/shinjiyu/holdem/issues
 | 2 | DEALER-STREET | **done** | [#6](https://github.com/shinjiyu/holdem/issues/6) |
 | 3 | TABLE-SESSION | **done** | [#7](https://github.com/shinjiyu/holdem/issues/7) |
 | 4 | WEB-TABLE, AGENT-PLAY | **done** | [#8](https://github.com/shinjiyu/holdem/issues/8) [#9](https://github.com/shinjiyu/holdem/issues/9) |
-| 5 | STAR-GRANT | **ready** | [#10](https://github.com/shinjiyu/holdem/issues/10) |
+| 5 | STAR-GRANT | **done** | [#10](https://github.com/shinjiyu/holdem/issues/10) |
 
 Lane A：wave 1 四条 plugin。AUTH 虽是 infra，路径 `src/auth/**` 与 plugin 不交。  
 Lane B：TABLE-SESSION（app/runtime）、WEB/AGENT 已拆子目录故可并行。  
