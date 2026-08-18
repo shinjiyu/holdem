@@ -100,6 +100,39 @@ describe("REQ-TABLE-SESSION", () => {
     expect(session.isHandActive()).toBe(false);
     expect(session.result()?.winners[0]?.seat).toBe(1);
   });
+
+  it("all-in runout skips empty-legal seats and settles at showdown", () => {
+    const session = new TableSession();
+    session.sit({ seat: 0, githubLogin: "alice", stack: 150 });
+    session.sit({ seat: 1, githubLogin: "bob", stack: 10_000 });
+    session.startHand({ button: 0, seed: 21 });
+
+    // HU: SB (0) all-in for remaining; BB calls
+    session.act(0, { kind: "allin" });
+    session.act(1, { kind: "call" });
+    // Both matched / alice all-in → auto-deal to showdown
+    expect(session.isHandActive()).toBe(false);
+    expect(session.view(0).street).toBe("showdown");
+    expect(session.view(0).board).toHaveLength(5);
+    expect(session.result()).not.toBeNull();
+    expect(session.result()!.shown.length).toBe(2);
+  });
+
+  it("timeout on all-in actor does not hang; advances to showdown", () => {
+    let now = 5_000;
+    const session = new TableSession(
+      { ...DEFAULT_TABLE_CONFIG, actionTimeoutMs: 1_000 },
+      () => now,
+    );
+    session.sit({ seat: 0, githubLogin: "alice", stack: 150 });
+    session.sit({ seat: 1, githubLogin: "bob", stack: 10_000 });
+    session.startHand({ button: 0, seed: 22 });
+    session.act(0, { kind: "allin" });
+    // If somehow an all-in seat is still actor with empty legal, expire must not throw
+    now = 100_000;
+    expect(() => session.expireTimedOutActions()).not.toThrow();
+    expect(session.result()).not.toBeNull();
+  });
 });
 
 describe("app import ban", () => {

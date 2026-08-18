@@ -132,6 +132,23 @@ export class TableSession {
       if (this.clock() < this.actionDeadlineMs) return;
       const seat = this.actorsSeat;
       const legal = this.betting.legal(seat);
+      if (legal.length === 0) {
+        // All-in / no legal ops: do not attempt fold (throws). Close or pass.
+        this.acted.add(seat);
+        if (this.streetBettingComplete()) {
+          this.setActor(null);
+          this.advanceStreet();
+        } else {
+          const next = this.nextActor(seat);
+          if (next === seat) {
+            this.setActor(null);
+            this.advanceStreet();
+          } else {
+            this.setActor(next);
+          }
+        }
+        continue;
+      }
       const canCheck = legal.some((a) => a.kind === "check");
       this.applyAct(seat, { kind: canCheck ? "check" : "fold" });
     }
@@ -188,6 +205,12 @@ export class TableSession {
       pot: this.betting.pot,
     });
     this.acted.clear();
+    // Everyone all-in → keep dealing to showdown without asking for checks
+    if (this.streetBettingComplete()) {
+      this.setActor(null);
+      this.advanceStreet();
+      return;
+    }
     this.setActor(this.firstActorPostflop());
   }
 
@@ -229,47 +252,60 @@ export class TableSession {
     return this.seatOrder().filter((s) => !this.folded.has(s));
   }
 
-  private firstActorPreflop(sbSeat: number, bbSeat: number): number {
-    const live = this.liveSeats();
-    if (live.length === 2) return sbSeat;
-    const i = live.indexOf(bbSeat);
-    return live[(i + 1) % live.length]!;
+  private canStillAct(seat: number): boolean {
+    return !this.folded.has(seat) && (this.remaining.get(seat) ?? 0) > 0;
   }
 
-  private firstActorPostflop(): number {
-    const live = this.liveSeats();
+  private firstActorPreflop(sbSeat: number, bbSeat: number): number {
+    const live = this.liveSeats().filter((s) => this.canStillAct(s));
+    if (live.length === 0) return sbSeat;
+    if (live.length === 2 || live.includes(sbSeat)) {
+      // HU or SB still active: SB/button first among those who can act
+      if (this.canStillAct(sbSeat)) return sbSeat;
+      if (this.canStillAct(bbSeat)) return bbSeat;
+    }
     const order = this.seatOrder();
-    const bi = order.indexOf(this.button);
+    const bi = order.indexOf(bbSeat);
     for (let step = 1; step <= order.length; step++) {
       const seat = order[(bi + step) % order.length]!;
-      if (live.includes(seat)) return seat;
+      if (this.canStillAct(seat)) return seat;
     }
     return live[0]!;
   }
 
+  private firstActorPostflop(): number {
+    const order = this.seatOrder();
+    const bi = order.indexOf(this.button);
+    for (let step = 1; step <= order.length; step++) {
+      const seat = order[(bi + step) % order.length]!;
+      if (this.canStillAct(seat)) return seat;
+    }
+    // Fallback — caller should have short-circuited via streetBettingComplete
+    return this.liveSeats()[0]!;
+  }
+
   private nextActor(after: number): number {
-    const live = this.liveSeats();
     const order = this.seatOrder();
     const start = order.indexOf(after);
     for (let step = 1; step <= order.length; step++) {
       const seat = order[(start + step) % order.length]!;
-      if (!live.includes(seat)) continue;
-      const stack = this.remaining.get(seat) ?? 0;
-      if (stack <= 0) continue; // all-in: no more action
+      if (!this.canStillAct(seat)) continue;
       if (this.betting.toCall(seat) > 0) return seat;
       if (!this.acted.has(seat)) return seat;
     }
-    // Should have been caught by streetBettingComplete
-    return live.find((s) => s !== after) ?? after;
+    return after;
   }
 
   private streetBettingComplete(): boolean {
     const live = this.liveSeats();
     if (live.length <= 1) return true;
-    for (const s of live) {
-      const stack = this.remaining.get(s) ?? 0;
-      if (stack <= 0) continue; // all-in matched as far as they can
+    const active = live.filter((s) => this.canStillAct(s));
+    for (const s of active) {
       if (this.betting.toCall(s) > 0) return false;
+    }
+    // Only one (or zero) player still has chips → no more betting; run the board out
+    if (active.length <= 1) return true;
+    for (const s of active) {
       if (!this.acted.has(s)) return false;
     }
     return true;

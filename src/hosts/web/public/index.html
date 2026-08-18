@@ -502,10 +502,9 @@
       const bet = Number(s.streetBet) || 0;
       const betHtml = `<div class="bet-chip${bet > 0 ? '' : ' zero'}">${bet}</div>`;
       if (s.githubLogin) {
-        let holeHtml = '';
-        if (isYou && v?.hole?.length) {
-          holeHtml = '<div class="hole-mini"></div>';
-        }
+        const shown = (payload.result?.shown || []).find((x) => x.seat === i);
+        const holeCards = isYou ? (v?.hole || []) : (shown?.hole || []);
+        let holeHtml = holeCards.length ? '<div class="hole-mini"></div>' : '';
         const stackTxt = isYou && v?.stack != null
           ? `<div class="stack">剩余 ${v.stack}</div>`
           : '';
@@ -516,9 +515,9 @@
           ${betHtml}
           ${holeHtml}
         </div>`;
-        if (isYou && v?.hole?.length) {
+        if (holeCards.length) {
           const mini = el.querySelector('.hole-mini');
-          for (const c of v.hole) mini.appendChild(cardEl(c));
+          for (const c of holeCards) mini.appendChild(cardEl(c));
         }
       } else {
         el.innerHTML = `${tag}<div class="bubble"><div class="name">空位</div>${betHtml}</div>`;
@@ -562,7 +561,17 @@
       }
     }
 
-    $('result').textContent = payload.result ? ('结算: ' + JSON.stringify(payload.result)) : '';
+    $('result').textContent = payload.result ? formatResult(payload.result) : '';
+  }
+
+  function formatResult(result) {
+    if (!result?.winners?.length) return '本手结束，可再开一手';
+    const parts = result.winners.map((w) => {
+      const who = (lastView?.seats || []).find((s) => s.seat === w.seat);
+      const name = who?.githubLogin ? `@${who.githubLogin}` : `#${w.seat}`;
+      return `${name} +${w.amount}`;
+    });
+    return `摊牌结算：${parts.join('，')} · 可再开一手`;
   }
 
   function secondsLeft(deadlineMs) {
@@ -580,7 +589,7 @@
     const clock = sec != null ? ` · ${sec}s` : '';
     if (!handActive) {
       hint.textContent = payload.result
-        ? '本手结束，可再开一手'
+        ? formatResult(payload.result)
         : '人齐后点「开一手」';
       return;
     }
