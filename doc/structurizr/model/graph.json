@@ -1,7 +1,7 @@
 {
   "schema": "adl.graph.v1",
   "project": "holdem",
-  "description": "NLHE engine. Plugins: out ≤ K, no plugin→plugin. Hosts are compose, not plugins.",
+  "description": "NLHE engine. Plugins: out ≤ K, no plugin→plugin. H5 + agent protocol are compose; GitHub auth is infra.",
   "K": 2,
   "hand_order": [
     "dealer.advance",
@@ -14,6 +14,7 @@
   "nodes": [
     { "id": "contracts", "role": "contracts", "path": "src/contracts/" },
     { "id": "config", "role": "infra", "path": "src/config/" },
+    { "id": "auth", "role": "infra", "path": "src/auth/" },
     { "id": "app", "role": "compose", "path": "src/app/" },
     { "id": "runtime", "role": "compose", "path": "src/runtime/" },
     { "id": "hosts", "role": "compose", "path": "src/hosts/" },
@@ -36,17 +37,21 @@
     { "from": "seat", "to": "contracts", "kind": "implements" },
     { "from": "app", "to": "runtime", "kind": "uses" },
     { "from": "app", "to": "config", "kind": "uses" },
+    { "from": "app", "to": "auth", "kind": "uses" },
     { "from": "app", "to": "contracts", "kind": "wires" },
     { "from": "app", "to": "hosts", "kind": "wires" },
     { "from": "runtime", "to": "contracts", "kind": "dispatches" },
     { "from": "runtime", "to": "config", "kind": "uses" },
     { "from": "hosts", "to": "contracts", "kind": "adapts" },
-    { "from": "hosts", "to": "runtime", "kind": "uses" }
+    { "from": "hosts", "to": "runtime", "kind": "uses" },
+    { "from": "hosts", "to": "auth", "kind": "uses" }
   ],
   "notes": [
     "No plugin→plugin. Dealer never imports betting/deck; it talks DealPort / BettingQuery / StreetEvent on the bus.",
-    "seat is the player port (SeatView in, ActionIntent out). Cursor/DSH/Codex/CLI are hosts compose, not plugins.",
+    "seat is one githubLogin. control=manual (player clicks) or hosted (their AI acts). Exclusive, not an AI opponent on another seat.",
     "Do not add a 'blinds' or 'side-pot' plugin — those live in betting + config.",
-    "Host SDKs (cursor, dsh, @openai/codex) may only be imported from src/hosts/<id>/."
+    "GitHub OAuth lives in auth infra. Plugins never import GitHub SDK. Agent uses table token, not iframe OAuth.",
+    "Star-for-tokens: auth checks starred via user token; compose calls BankPort.grant once. Do not add bank→auth.",
+    "Cursor auto-play MUST go through hosts/agent tools, never DOM clicks on the H5."
   ]
 }

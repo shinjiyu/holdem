@@ -3,7 +3,7 @@ workspace "holdem" "Embeddable NLHE engine. ADL authority for O(1) plugins + R_m
     !identifiers hierarchical
 
     model {
-        operator = person "Player / Agent" "Sits a seat via Cursor, DSH, Codex, or CLI"
+        operator = person "Human or Agent" "Human: GitHub OAuth + H5. Agent: table token + MCP/HTTP."
 
         holdem = softwareSystem "holdem" "Headless NLHE; host adapters are thin compose" {
 
@@ -26,12 +26,12 @@ workspace "holdem" "Embeddable NLHE engine. ADL authority for O(1) plugins + R_m
                     }
                 }
 
-                hosts = container "Hosts" "Cursor MCP / DSH plugin / Codex skill / CLI" "TypeScript" {
+                hosts = container "Hosts" "web = simple H5; agent = MCP+HTTP autoplay; cli wraps HTTP" "TypeScript" {
                     tags "Compose"
                     properties {
                         "path" "src/hosts/"
                         "role" "compose"
-                        "horizon.intention" "Adapt SeatView/ActionIntent to a host; never own pot math"
+                        "horizon.intention" "Same SeatView/ActionIntent; never own pot math. Cursor auto-play uses agent tools, not DOM."
                     }
                 }
             }
@@ -50,6 +50,15 @@ workspace "holdem" "Embeddable NLHE engine. ADL authority for O(1) plugins + R_m
                     properties {
                         "path" "src/config/"
                         "role" "infra"
+                    }
+                }
+
+                auth = container "Auth" "GitHub OAuth + table tokens + star check. Not a plugin." "TypeScript" {
+                    tags "Infra"
+                    properties {
+                        "path" "src/auth/"
+                        "role" "infra"
+                        "horizon.intention" "Identity + starred?; credit via BankPort, never bank→GitHub"
                     }
                 }
             }
@@ -113,8 +122,10 @@ workspace "holdem" "Embeddable NLHE engine. ADL authority for O(1) plugins + R_m
 
         operator -> hosts "act / observe"
         hosts -> runtime "uses"
+        hosts -> auth "uses"
         app -> runtime "uses"
         app -> hosts "wires"
+        app -> auth "uses"
         runtime -> contracts "dispatches"
         deckPlugin -> contracts "implements"
         evaluatePlugin -> contracts "implements"

@@ -43,10 +43,21 @@ export interface LegalAction {
   max?: number;
 }
 
+export type ControlMode = "manual" | "hosted";
+
+export interface SeatOccupant {
+  githubLogin: string;
+  /** Same account: player clicks, or their AI is delegated. Exclusive. */
+  control: ControlMode;
+  /** When hosted: cursor | codex | dsh | cli — display only */
+  host?: string;
+}
+
 /** What one seated player is allowed to see. */
 export interface SeatView {
   tableId: string;
   seat: number;
+  you: SeatOccupant;
   street: Street;
   board: Card[];
   hole: Card[];

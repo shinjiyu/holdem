@@ -17,6 +17,7 @@ describe("shared table DTOs", () => {
     const view: SeatView = {
       tableId: "t1",
       seat: 0,
+      you: { githubLogin: "octocat", control: "hosted", host: "cursor" },
       street,
       board: [],
       hole,
@@ -34,6 +35,8 @@ describe("shared table DTOs", () => {
       shown: [{ seat: 0, hole }],
     };
     expect(view.hole).toHaveLength(2);
+    expect(view.you.control).toBe("hosted");
+    expect(view.you.githubLogin).toBe("octocat");
     expect(intent.kind).toBe("call");
     expect(result.winners[0]?.amount).toBe(150);
   });

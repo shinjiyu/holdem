@@ -6,6 +6,8 @@ export type {
   ActionKind,
   ActionIntent,
   LegalAction,
+  ControlMode,
+  SeatOccupant,
   SeatView,
   HandResult,
 } from "./shared/dto";

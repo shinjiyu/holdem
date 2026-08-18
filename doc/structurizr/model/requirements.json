@@ -20,7 +20,7 @@
       "ui": false,
       "test_kind": "contract",
       "tests": ["tests/contracts/shared-dto.test.ts"],
-      "acceptance": "contracts/shared holds Card, Action, Street, SeatView, LegalAction, HandResult; each plugin owns contracts/<id>/ only; no plugin imports another plugin"
+      "acceptance": "contracts/shared holds Card, Action, Street, SeatOccupant.control manual|hosted, SeatView, LegalAction, HandResult; each plugin owns contracts/<id>/ only; no plugin imports another plugin"
     },
     {
       "id": "REQ-LOGIC-HEADLESS",
@@ -30,7 +30,7 @@
       "ui": false,
       "test_kind": "unit",
       "tests": ["tests/headless-import-ban.test.ts"],
-      "acceptance": "src/{deck,evaluate,betting,dealer,bank,seat,runtime,app,config,contracts} do not import src/hosts or cursor/dsh/codex packages"
+      "acceptance": "src/{deck,evaluate,betting,dealer,bank,seat,runtime,app,config,auth,contracts} do not import src/hosts or cursor/dsh/codex/octokit packages"
     },
     {
       "id": "REQ-DECK-SHUFFLE",
@@ -90,37 +90,47 @@
       "ui": false,
       "test_kind": "manual",
       "tests": [],
-      "acceptance": "A seat never sees other hole cards; hosts consume SeatView; plugins do not import hosts"
+      "acceptance": "A seat never sees other hole cards; one githubLogin per seat; control is manual|hosted (same account, exclusive). Plugins do not import hosts"
     },
     {
-      "id": "REQ-HOST-CURSOR",
-      "title": "Cursor MCP adapter sits a seat",
+      "id": "REQ-AUTH-GITHUB",
+      "title": "GitHub OAuth identity; table tokens for agents",
+      "component": "auth",
+      "slice": "embed",
+      "ui": false,
+      "test_kind": "manual",
+      "tests": [],
+      "acceptance": "Human logs in via top-level GitHub OAuth. Hosting token is bound to the SAME githubLogin+seat (the player's own AI, not an opponent). Plugins do not import GitHub SDK. See doc/design/HOST-EMBED.md"
+    },
+    {
+      "id": "REQ-WEB-TABLE",
+      "title": "Manual control: player finishes a hand by clicking H5",
       "component": "hosts",
       "slice": "embed",
       "ui": false,
       "test_kind": "manual",
       "tests": [],
-      "acceptance": "src/hosts/cursor exposes hand_state / legal_actions / act; engine remains host-agnostic. See doc/design/HOST-EMBED.md"
+      "acceptance": "control=manual, no hosting. Same GitHub account clicks through a hand on hosts/web. Agent act is rejected while manual."
     },
     {
-      "id": "REQ-HOST-DSH",
-      "title": "DeepSeek Harness plugin adapter sits a seat",
+      "id": "REQ-AGENT-PLAY",
+      "title": "Hosting: same GitHub account delegates the seat to their AI",
       "component": "hosts",
       "slice": "embed",
       "ui": false,
       "test_kind": "manual",
       "tests": [],
-      "acceptance": "src/hosts/dsh is a dsh-plugin wrapping the same SeatView/ActionIntent contracts"
+      "acceptance": "Player toggles control=hosted on THEIR seat. H5 clicks rejected (except take-back). Agent with that account's table token finishes the hand via act. Take-back restores manual. Not a second-seat opponent. Cursor is one hosting client."
     },
     {
-      "id": "REQ-HOST-CODEX",
-      "title": "Codex / generic harness adapter sits a seat",
-      "component": "hosts",
+      "id": "REQ-STAR-GRANT",
+      "title": "One-time token grant if this GitHub account starred the repo",
+      "component": "auth",
       "slice": "embed",
       "ui": false,
       "test_kind": "manual",
       "tests": [],
-      "acceptance": "src/hosts/codex and src/hosts/cli speak the same JSON protocol; no extra plugin nodes"
+      "acceptance": "Claim button: GET /user/starred/{owner}/{repo} with the user's token. 204 + never claimed → BankPort.grant once via compose. 404 or already claimed → no credit. bank/plugins do not import GitHub. Amount in config. No unstar clawback in MVP. See doc/design/STAR-GRANT.md"
     }
   ]
 }

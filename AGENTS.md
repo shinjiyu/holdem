@@ -10,7 +10,9 @@ Read and follow:
 4. [`doc/structurizr/CORE-THEORY.md`](doc/structurizr/CORE-THEORY.md)
 5. [`doc/structurizr/ADL-RULES.md`](doc/structurizr/ADL-RULES.md)
 6. [`doc/design/HOST-EMBED.md`](doc/design/HOST-EMBED.md)
-7. Run `py scripts/adl_check.py` before finishing ADL/structure work
+7. [`doc/design/STAR-GRANT.md`](doc/design/STAR-GRANT.md)
+8. [`doc/design/HOSTING.md`](doc/design/HOSTING.md)
+9. Run `py scripts/adl_check.py` before finishing ADL/structure work
 
 ## Default role for this Cursor
 

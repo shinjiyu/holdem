@@ -13,6 +13,7 @@ const bannedRoots = [
   "src/runtime",
   "src/app",
   "src/config",
+  "src/auth",
   "src/contracts",
 ];
 
@@ -22,6 +23,7 @@ const hostPatterns = [
   /from\s+["']cursor-sdk/,
   /deepseek-harness/,
   /from\s+["']@openai\//,
+  /from\s+["']@octokit\//,
 ];
 
 function walkTs(dir: string): string[] {
