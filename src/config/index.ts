@@ -15,6 +15,6 @@ export const DEFAULT_TABLE_CONFIG: TableConfig = {
   smallBlind: 50,
   bigBlind: 100,
   startingStack: 10_000,
-  starGrantChips: 10_000,
+  starGrantChips: 1_000_000,
   starGrantRepo: "shinjiyu/holdem",
 };

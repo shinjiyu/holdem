@@ -50,6 +50,10 @@ const PUBLIC_BASE = env("HOLDEM_PUBLIC_BASE", "http://127.0.0.1:3010").replace(/
 const REDIRECT_URI = env("HOLDEM_REDIRECT_URI", `${PUBLIC_BASE}/oauth/callback`);
 const COOKIE_NAME = "holdem_session";
 const COOKIE_SECRET = env("TABLE_TOKEN_SECRET", "dev-only-change-me");
+/** Temporary multi-seat testing. Unset HOLDEM_TEST_SECRET to disable /dev/as. */
+const TEST_SECRET = env("HOLDEM_TEST_SECRET");
+const TEST_LOGINS = new Set(["bot1", "bot2", "bot3", "bot4", "bot5", "bot6"]);
+const TEST_STACK = 1_000_000;
 
 const auth = new Auth({
   clientId: env("GITHUB_CLIENT_ID"),
@@ -629,6 +633,31 @@ const server = createServer(async (req, res) => {
       }
       const loc = auth.authorizationUrl(randomBytes(8).toString("hex"));
       res.writeHead(302, { Location: loc });
+      res.end();
+      return;
+    }
+
+    // Temporary: https://…/holdem/dev/as?u=bot1&k=<HOLDEM_TEST_SECRET>
+    // Disabled when HOLDEM_TEST_SECRET is unset. Remove after QA.
+    if (req.method === "GET" && path === "/dev/as") {
+      if (!TEST_SECRET) {
+        send(res, 404, "not found", "text/plain");
+        return;
+      }
+      const k = url.searchParams.get("k") ?? "";
+      const u = (url.searchParams.get("u") ?? "").trim().toLowerCase();
+      if (!k || k !== TEST_SECRET || !TEST_LOGINS.has(u)) {
+        send(res, 403, "forbidden", "text/plain");
+        return;
+      }
+      const avatarUrl = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(u)}`;
+      rememberPlayer(u, { avatarUrl });
+      ensureLobbyWallet(u);
+      const seat = lobbyIndex.get(u)!;
+      lobbyBank.sit({ seat, githubLogin: u, stack: TEST_STACK });
+      savePersist();
+      setSessionCookie(res, { githubLogin: u, avatarUrl });
+      res.writeHead(302, { Location: `${PUBLIC_BASE}/` });
       res.end();
       return;
     }
