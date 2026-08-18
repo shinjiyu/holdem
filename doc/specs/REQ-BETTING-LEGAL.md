@@ -2,8 +2,8 @@
 id: REQ-BETTING-LEGAL
 module: betting
 role: module
-status: ready
-agent: unassigned
+status: claimed
+agent: bet-bot
 owns_paths:
   - src/contracts/betting/**
   - src/betting/**
@@ -24,7 +24,7 @@ last_updated: 2026-08-18
 - component: betting
 - role: module
 - test_kind: unit
-- status: ready
+- status: claimed
 
 ## 目标
 当前行动人的合法动作 + pot / toCall / min-raise。边池下一刀。
