@@ -7,7 +7,7 @@
   <style>
     :root { color-scheme: dark; }
     body { font-family: system-ui, sans-serif; margin: 0; background: #0b1a12; color: #e8f5e9; }
-    main { max-width: 960px; margin: 0 auto; padding: 1rem; }
+    main { max-width: 1100px; margin: 0 auto; padding: 1rem; }
     button { margin: 0.2rem; padding: 0.45rem 0.8rem; border-radius: 6px; border: 0; cursor: pointer; }
     button.primary { background: #2e7d32; color: #fff; }
     button.act { background: #1b5e20; color: #fff; }
@@ -17,22 +17,200 @@
     .muted { color: #9ccc9c; font-size: 0.9rem; }
     #error { color: #ff8a80; white-space: pre-wrap; }
     .row { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
-    .me-avatar, .seat img { width: 40px; height: 40px; border-radius: 50%; background: #1b3a28; object-fit: cover; }
+    .me-avatar { width: 40px; height: 40px; border-radius: 50%; background: #1b3a28; object-fit: cover; }
     .seat { width: 88px; text-align: center; border: 1px dashed #2e4a38; border-radius: 8px; padding: 0.4rem; cursor: pointer; }
     .seat.filled { border-style: solid; background: #163222; cursor: default; }
     .seat.empty:hover { border-color: #66bb6a; }
     .seat .name { font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .seat img { width: 40px; height: 40px; border-radius: 50%; background: #1b3a28; object-fit: cover; }
     .tables { display: grid; gap: 0.75rem; }
     .table-card h3 { margin: 0 0 0.5rem; }
     .seats { display: flex; flex-wrap: wrap; gap: 0.4rem; }
     .hidden { display: none !important; }
     .hosted .act { opacity: 0.35; pointer-events: none; }
+
+    /* —— oval felt —— */
+    #table.table-wrap { background: transparent; border: 0; padding: 0; }
+    .table-toolbar { margin-bottom: 0.5rem; }
+    .felt {
+      position: relative;
+      width: min(100%, 980px);
+      margin: 0.5rem auto 1rem;
+      aspect-ratio: 16 / 10;
+      min-height: 420px;
+      background:
+        radial-gradient(ellipse at 50% 45%, #2e7d32 0%, #1b5e20 42%, #0f3d1a 78%, #0a2812 100%);
+      border: 12px solid #4e342e;
+      border-radius: 50% / 44%;
+      box-shadow:
+        inset 0 0 60px rgba(0, 0, 0, 0.45),
+        0 12px 28px rgba(0, 0, 0, 0.35);
+    }
+    .felt-rail {
+      position: absolute;
+      inset: 18px;
+      border: 2px solid rgba(200, 230, 201, 0.12);
+      border-radius: 50% / 44%;
+      pointer-events: none;
+    }
+    .felt-center {
+      position: absolute;
+      left: 50%;
+      top: 46%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      min-width: 220px;
+      max-width: 70%;
+    }
+    .felt-street {
+      font-size: 0.8rem;
+      color: #a5d6a7;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 0.35rem;
+    }
+    .felt-board {
+      display: flex;
+      justify-content: center;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+      min-height: 52px;
+      margin-bottom: 0.4rem;
+    }
+    .felt-pot {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #fff9c4;
+    }
+    .felt-pot small { display: block; font-weight: 400; color: #c8e6c9; font-size: 0.8rem; margin-top: 0.15rem; }
+
+    .pcard {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 38px;
+      height: 52px;
+      border-radius: 5px;
+      background: #fafafa;
+      color: #111;
+      font-weight: 700;
+      font-size: 0.85rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,.35);
+      font-variant-numeric: tabular-nums;
+    }
+    .pcard.red { color: #c62828; }
+    .pcard.empty {
+      background: rgba(0,0,0,.2);
+      color: transparent;
+      border: 1px dashed rgba(255,255,255,.25);
+      box-shadow: none;
+    }
+
+    .felt-seat {
+      position: absolute;
+      width: 118px;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      z-index: 2;
+    }
+    /* 6 seats around the oval: top → clockwise */
+    .felt-seat[data-i="0"] { left: 50%; top: 7%; }
+    .felt-seat[data-i="1"] { left: 88%; top: 28%; }
+    .felt-seat[data-i="2"] { left: 88%; top: 72%; }
+    .felt-seat[data-i="3"] { left: 50%; top: 93%; }
+    .felt-seat[data-i="4"] { left: 12%; top: 72%; }
+    .felt-seat[data-i="5"] { left: 12%; top: 28%; }
+
+    .felt-seat .bubble {
+      background: rgba(10, 28, 18, 0.88);
+      border: 2px solid #3e5c48;
+      border-radius: 12px;
+      padding: 0.4rem 0.35rem 0.45rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,.35);
+    }
+    .felt-seat.filled .bubble { border-color: #66bb6a; }
+    .felt-seat.you .bubble {
+      border-color: #ffd54f;
+      box-shadow: 0 0 0 2px rgba(255, 213, 79, 0.35), 0 4px 12px rgba(0,0,0,.35);
+    }
+    .felt-seat.empty .bubble {
+      border-style: dashed;
+      opacity: 0.55;
+      background: rgba(10, 28, 18, 0.45);
+    }
+    .felt-seat img {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: #1b3a28;
+      display: block;
+      margin: 0 auto 0.25rem;
+    }
+    .felt-seat .name {
+      font-size: 0.72rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .felt-seat .stack {
+      font-size: 0.7rem;
+      color: #fff9c4;
+      margin-top: 0.15rem;
+    }
+    .felt-seat .hole-mini {
+      display: flex;
+      justify-content: center;
+      gap: 0.2rem;
+      margin-top: 0.3rem;
+    }
+    .felt-seat .hole-mini .pcard {
+      width: 28px;
+      height: 38px;
+      font-size: 0.7rem;
+    }
+    .felt-seat .tag {
+      position: absolute;
+      top: -8px;
+      right: -4px;
+      font-size: 0.65rem;
+      background: #37474f;
+      color: #eceff1;
+      padding: 1px 5px;
+      border-radius: 8px;
+    }
+    .felt-seat.you .tag { background: #f9a825; color: #212121; }
+
+    .actions-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      justify-content: center;
+      align-items: center;
+      padding: 0.75rem;
+      background: #12261a;
+      border: 1px solid #2e4a38;
+      border-radius: 10px;
+    }
+    #result {
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+      color: #ffe082;
+      text-align: center;
+    }
+
+    @media (max-width: 720px) {
+      .felt { min-height: 360px; border-width: 8px; }
+      .felt-seat { width: 96px; }
+      .felt-seat img { width: 36px; height: 36px; }
+      .pcard { width: 30px; height: 42px; font-size: 0.75rem; }
+    }
   </style>
 </head>
 <body>
 <main>
   <h1>holdem 大厅</h1>
-  <p class="muted">先 GitHub 登录 → 大厅选桌入座（显示头像）→ 开打。加星领币在登录条。</p>
+  <p class="muted">先 GitHub 登录 → 大厅选桌入座 → 开打。加星领币在登录条。</p>
 
   <div id="auth" class="card">检查登录…</div>
 
@@ -45,17 +223,22 @@
     <div id="tables" class="tables"></div>
   </section>
 
-  <section id="table" class="card hidden">
-    <div class="row">
+  <section id="table" class="table-wrap hidden">
+    <div class="row table-toolbar card">
       <button class="ghost" id="btnBack">← 回大厅（离桌）</button>
-      <span id="tableTitle"></span>
+      <strong id="tableTitle"></strong>
+      <span class="muted" id="status"></span>
     </div>
-    <div id="seatBar" class="seats" style="margin:0.5rem 0"></div>
-    <div id="status"></div>
-    <div id="board"></div>
-    <div id="hole"></div>
-    <div id="pot"></div>
-    <div id="actions"></div>
+    <div class="felt" id="felt">
+      <div class="felt-rail"></div>
+      <div class="felt-center">
+        <div class="felt-street" id="streetLabel">—</div>
+        <div class="felt-board" id="board"></div>
+        <div class="felt-pot" id="pot">底池 —</div>
+      </div>
+      <!-- seats injected -->
+    </div>
+    <div class="actions-bar" id="actions"></div>
     <div id="result"></div>
   </section>
 
@@ -66,6 +249,7 @@
   const $ = (id) => document.getElementById(id);
   let me = null;
   let viewMode = 'lobby'; // lobby | table
+  let lastView = null;
 
   function showErr(e) { $('error').textContent = e || ''; }
 
@@ -80,7 +264,23 @@
     return data;
   }
 
-  function card(c) { return (c.rank || '?') + (c.suit || ''); }
+  function suitRed(suit) {
+    return suit === 'h' || suit === 'd' || suit === '♥' || suit === '♦';
+  }
+
+  function cardEl(c) {
+    const el = document.createElement('span');
+    el.className = 'pcard' + (suitRed(c.suit) ? ' red' : '');
+    el.textContent = (c.rank || '?') + (c.suit || '');
+    return el;
+  }
+
+  function emptyCard() {
+    const el = document.createElement('span');
+    el.className = 'pcard empty';
+    el.textContent = '?';
+    return el;
+  }
 
   function renderAuth() {
     const auth = $('auth');
@@ -197,32 +397,72 @@
     await refreshLobby();
   }
 
-  function renderSeats(seats) {
-    const bar = $('seatBar');
-    bar.innerHTML = '';
-    for (const s of seats || []) {
+  function ensureFeltSeats() {
+    const felt = $('felt');
+    if (felt.querySelector('.felt-seat')) return;
+    for (let i = 0; i < 6; i++) {
       const el = document.createElement('div');
-      el.className = 'seat ' + (s.githubLogin ? 'filled' : 'empty');
+      el.className = 'felt-seat empty';
+      el.dataset.i = String(i);
+      el.innerHTML = `<div class="bubble"><div class="name">空 #${i}</div></div>`;
+      felt.appendChild(el);
+    }
+  }
+
+  function renderFelt(payload) {
+    ensureFeltSeats();
+    const v = payload.view;
+    const mySeat = v?.seat;
+    const seats = payload.seats || [];
+
+    $('streetLabel').textContent = v?.street || 'waiting';
+    const board = $('board');
+    board.innerHTML = '';
+    const cards = v?.board || [];
+    if (cards.length === 0) {
+      for (let i = 0; i < 5; i++) board.appendChild(emptyCard());
+    } else {
+      for (const c of cards) board.appendChild(cardEl(c));
+    }
+    $('pot').innerHTML = `底池 ${v?.pot ?? 0}<small>跟注 ${v?.toCall ?? 0}</small>`;
+
+    for (let i = 0; i < 6; i++) {
+      const el = $('felt').querySelector(`.felt-seat[data-i="${i}"]`);
+      if (!el) continue;
+      const s = seats.find((x) => x.seat === i) || { seat: i, githubLogin: null, avatarUrl: null };
+      const isYou = mySeat === i;
+      el.className = 'felt-seat' + (s.githubLogin ? ' filled' : ' empty') + (isYou ? ' you' : '');
+      const tag = isYou ? '<span class="tag">你</span>' : `<span class="tag">#${i}</span>`;
       if (s.githubLogin) {
-        el.innerHTML = `<img src="${s.avatarUrl}" alt=""/><div class="name">@${s.githubLogin}</div>`;
+        let holeHtml = '';
+        if (isYou && v?.hole?.length) {
+          holeHtml = '<div class="hole-mini"></div>';
+        }
+        const stackTxt = isYou && v?.stack != null ? `<div class="stack">${v.stack}</div>` : '';
+        el.innerHTML = `${tag}<div class="bubble">
+          <img src="${s.avatarUrl}" alt=""/>
+          <div class="name">@${s.githubLogin}</div>
+          ${stackTxt}
+          ${holeHtml}
+        </div>`;
+        if (isYou && v?.hole?.length) {
+          const mini = el.querySelector('.hole-mini');
+          for (const c of v.hole) mini.appendChild(cardEl(c));
+        }
       } else {
-        el.innerHTML = `<div style="height:40px;line-height:40px">空</div><div class="name">#${s.seat}</div>`;
+        el.innerHTML = `${tag}<div class="bubble"><div class="name">空位</div></div>`;
       }
-      bar.appendChild(el);
     }
   }
 
   function renderView(payload) {
     const v = payload.view;
     if (!v) return;
+    lastView = payload;
     document.body.classList.toggle('hosted', v.you.control === 'hosted');
     $('tableTitle').textContent = `桌 ${payload.tableId || me.tableId || ''}`;
-    renderSeats(payload.seats);
-    $('status').textContent =
-      `@${v.you.githubLogin} seat=${v.seat} street=${v.street} control=${v.you.control} stack=${v.stack}`;
-    $('board').textContent = 'board: ' + ((v.board || []).map(card).join(' ') || '(none)');
-    $('hole').textContent = 'hole: ' + (v.hole || []).map(card).join(' ');
-    $('pot').textContent = `pot=${v.pot} toCall=${v.toCall}`;
+    $('status').textContent = `@${v.you.githubLogin} · ${v.you.control} · seat ${v.seat}`;
+    renderFelt(payload);
 
     const box = $('actions');
     box.innerHTML = '';
@@ -259,7 +499,7 @@
     next.onclick = () => api('/api/advance', { method: 'POST', body: '{}' }).then(refreshTable).catch((e) => showErr(e.message));
     box.appendChild(next);
 
-    $('result').textContent = payload.result ? ('HandResult: ' + JSON.stringify(payload.result)) : '';
+    $('result').textContent = payload.result ? ('结算: ' + JSON.stringify(payload.result)) : '';
   }
 
   async function refreshTable() {
