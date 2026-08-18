@@ -1,7 +1,7 @@
 /** HTTP host: lobby + tables + star-claim + OAuth for kuroneko.chat/holdem/ */
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
@@ -16,6 +16,8 @@ import type { ActionIntent } from "../../contracts/shared/dto";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, "public");
+const DATA_DIR = join(process.cwd(), "data");
+const META_FILE = join(DATA_DIR, "players.json");
 const MAX_SEATS = DEFAULT_TABLE_CONFIG.maxSeats;
 
 function loadDotEnv(): void {
@@ -58,7 +60,6 @@ const auth = new Auth({
 
 interface PlayerCookie {
   githubLogin: string;
-  accessToken?: string;
   avatarUrl?: string;
 }
 
@@ -73,11 +74,17 @@ interface TableRoom {
   name: string;
   session: TableSession;
   host: WebTableHost;
-  /** login -> avatar for seated players */
   avatars: Map<string, string>;
 }
 
-/** Lobby wallet (chips) — separate from in-hand table bank until sit copies stack. */
+interface PersistedState {
+  players: Record<string, { avatarUrl: string; accessToken?: string }>;
+  lobbyIndex: Record<string, number>;
+  lobbyStacks: Record<string, number>;
+  lobbySeatSeq: number;
+  starClaimed: string[];
+}
+
 const lobbyBank = new BankPlugin();
 const starLedger = new StarGrantLedger();
 const starClaim = new StarClaimHost(
@@ -88,8 +95,65 @@ const starClaim = new StarClaimHost(
 let lobbySeatSeq = 0;
 const lobbyIndex = new Map<string, number>();
 const playerMeta = new Map<string, { avatarUrl: string; accessToken?: string }>();
-
 const rooms = new Map<string, TableRoom>();
+
+function savePersist(): void {
+  mkdirSync(DATA_DIR, { recursive: true });
+  const lobbyStacks: Record<string, number> = {};
+  for (const [login, seat] of lobbyIndex) {
+    lobbyStacks[login] = lobbyBank.stack(seat);
+  }
+  const players: PersistedState["players"] = {};
+  for (const [login, meta] of playerMeta) {
+    players[login] = { ...meta };
+  }
+  const state: PersistedState = {
+    players,
+    lobbyIndex: Object.fromEntries(lobbyIndex),
+    lobbyStacks,
+    lobbySeatSeq,
+    starClaimed: [...starClaimedSet],
+  };
+  writeFileSync(META_FILE, JSON.stringify(state), "utf8");
+}
+
+const starClaimedSet = new Set<string>();
+
+function loadPersist(): void {
+  if (!existsSync(META_FILE)) return;
+  try {
+    const state = JSON.parse(readFileSync(META_FILE, "utf8")) as PersistedState;
+    lobbySeatSeq = state.lobbySeatSeq ?? 0;
+    for (const [login, seat] of Object.entries(state.lobbyIndex ?? {})) {
+      lobbyIndex.set(login, seat);
+      const stack = state.lobbyStacks?.[login] ?? DEFAULT_TABLE_CONFIG.startingStack;
+      lobbyBank.sit({ seat, githubLogin: login, stack });
+    }
+    for (const [login, meta] of Object.entries(state.players ?? {})) {
+      playerMeta.set(login, meta);
+    }
+    for (const login of state.starClaimed ?? []) {
+      starClaimedSet.add(login);
+      starLedger.markClaimed(login);
+    }
+  } catch (e) {
+    console.error("loadPersist failed", e);
+  }
+}
+
+loadPersist();
+
+function rememberPlayer(
+  githubLogin: string,
+  meta: { avatarUrl: string; accessToken?: string },
+): void {
+  const prev = playerMeta.get(githubLogin);
+  playerMeta.set(githubLogin, {
+    avatarUrl: meta.avatarUrl || prev?.avatarUrl || avatarFor(githubLogin),
+    accessToken: meta.accessToken || prev?.accessToken,
+  });
+  savePersist();
+}
 
 function avatarFor(login: string, explicit?: string): string {
   return explicit || `https://github.com/${login}.png?size=80`;
@@ -105,6 +169,7 @@ function ensureLobbyWallet(githubLogin: string): number {
     stack: DEFAULT_TABLE_CONFIG.startingStack,
   });
   lobbyIndex.set(githubLogin, seat);
+  savePersist();
   return seat;
 }
 
@@ -204,6 +269,17 @@ function setSessionCookie(res: ServerResponse, player: PlayerCookie): void {
   );
 }
 
+function clearSessionCookie(res: ServerResponse): void {
+  res.setHeader(
+    "Set-Cookie",
+    `${COOKIE_NAME}=; Path=/holdem; HttpOnly; SameSite=Lax; Secure; Max-Age=0`,
+  );
+}
+
+function accessTokenOf(githubLogin: string, cookie?: PlayerCookie | null): string | undefined {
+  return playerMeta.get(githubLogin)?.accessToken;
+}
+
 function send(res: ServerResponse, status: number, body: unknown, type = "application/json"): void {
   const data = typeof body === "string" ? body : JSON.stringify(body);
   res.writeHead(status, {
@@ -269,6 +345,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, path: string
     ensureLobbyWallet(player.githubLogin);
     const meta = playerMeta.get(player.githubLogin);
     const at = playerTable(player.githubLogin);
+    const hasToken = Boolean(accessTokenOf(player.githubLogin, player));
     send(res, 200, {
       loggedIn: true,
       githubLogin: player.githubLogin,
@@ -276,10 +353,17 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, path: string
       chips: lobbyBank.stack(lobbyIndex.get(player.githubLogin)!),
       starGrantChips: DEFAULT_TABLE_CONFIG.starGrantChips,
       starGrantRepo: DEFAULT_TABLE_CONFIG.starGrantRepo,
-      starClaimed: starLedger.hasClaimed(player.githubLogin),
+      starClaimed: starClaimedSet.has(player.githubLogin) || starLedger.hasClaimed(player.githubLogin),
+      needsReauth: !hasToken,
       tableId: at?.tableId ?? null,
       seat: at?.seat ?? null,
     });
+    return;
+  }
+
+  if (method === "POST" && path === "/api/logout") {
+    clearSessionCookie(res);
+    send(res, 200, { ok: true });
     return;
   }
 
@@ -358,11 +442,12 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, path: string
       send(res, 200, { ok: true });
       return;
     }
-    // Persist chips back to lobby (best-effort: bank stack on table)
+    // Persist chips back to lobby
     ensureLobbyWallet(player.githubLogin);
     const chips = room.session.bank.stack(seat);
     const lobbySeat = lobbyIndex.get(player.githubLogin)!;
     lobbyBank.sit({ seat: lobbySeat, githubLogin: player.githubLogin, stack: chips });
+    savePersist();
     // Recreate session without this seat — simplest: rebuild occupants
     const keep = seatOccupants(room).filter((s) => s.githubLogin && s.githubLogin !== player.githubLogin);
     const session = new TableSession();
@@ -385,14 +470,20 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, path: string
   if (method === "POST" && path === "/api/star-claim") {
     const player = requirePlayer(req, res);
     if (!player) return;
-    const token = player.accessToken || playerMeta.get(player.githubLogin)?.accessToken;
+    const token = accessTokenOf(player.githubLogin, player);
     if (!token) {
-      send(res, 400, { error: "missing github access token; log out and login again" });
+      send(res, 401, {
+        error: "需要重新登录 GitHub 才能领币",
+        needsReauth: true,
+        loginUrl: `${PUBLIC_BASE}/login`,
+      });
       return;
     }
     ensureLobbyWallet(player.githubLogin);
     try {
       const result = await starClaim.claim(player.githubLogin, token);
+      starClaimedSet.add(player.githubLogin);
+      savePersist();
       send(res, 200, {
         ...result,
         chips: lobbyBank.stack(lobbyIndex.get(player.githubLogin)!),
@@ -549,15 +640,17 @@ const server = createServer(async (req, res) => {
         return;
       }
       const result = await auth.completeOAuth(code);
+      if (!result.accessToken) {
+        console.error("oauth callback missing accessToken for", result.githubLogin);
+      }
       const avatarUrl = result.avatarUrl ?? avatarFor(result.githubLogin);
-      playerMeta.set(result.githubLogin, {
+      rememberPlayer(result.githubLogin, {
         avatarUrl,
         accessToken: result.accessToken,
       });
       ensureLobbyWallet(result.githubLogin);
       setSessionCookie(res, {
         githubLogin: result.githubLogin,
-        accessToken: result.accessToken,
         avatarUrl,
       });
       res.writeHead(302, { Location: `${PUBLIC_BASE}/` });

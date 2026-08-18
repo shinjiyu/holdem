@@ -90,7 +90,9 @@
     }
     const claimed = me.starClaimed
       ? '<span class="muted">已领过加星奖励</span>'
-      : `<button class="warn" id="btnStar">我已 star ${me.starGrantRepo}，领 ${me.starGrantChips} 币</button>`;
+      : me.needsReauth
+        ? `<a href="${BASE}/login"><button class="warn">重新登录后才能领币</button></a>`
+        : `<button class="warn" id="btnStar">我已 star ${me.starGrantRepo}，领 ${me.starGrantChips} 币</button>`;
     auth.innerHTML = `
       <div class="row">
         <img class="me-avatar" src="${me.avatarUrl}" alt="" />
@@ -100,18 +102,35 @@
         </div>
         ${claimed}
         <a class="muted" href="https://github.com/${me.starGrantRepo}" target="_blank" rel="noopener">去加星 ↗</a>
+        <button class="ghost" id="btnLogout">退出</button>
       </div>`;
     const btn = $('btnStar');
     if (btn) btn.onclick = () => claimStar().catch((e) => showErr(e.message));
+    const lo = $('btnLogout');
+    if (lo) lo.onclick = () => logout().catch((e) => showErr(e.message));
+  }
+
+  async function logout() {
+    await api('/api/logout', { method: 'POST', body: '{}' });
+    location.href = BASE + '/';
   }
 
   async function claimStar() {
     showErr('');
-    const r = await api('/api/star-claim', { method: 'POST', body: '{}' });
-    me.chips = r.chips;
-    me.starClaimed = true;
-    renderAuth();
-    alert(`到账 +${r.granted}`);
+    try {
+      const r = await api('/api/star-claim', { method: 'POST', body: '{}' });
+      me.chips = r.chips;
+      me.starClaimed = true;
+      me.needsReauth = false;
+      renderAuth();
+      alert(`到账 +${r.granted}`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      showErr(msg);
+      if (/重新登录|reauth|access token/i.test(msg)) {
+        if (confirm(msg + '\n\n现在去重新登录？')) location.href = BASE + '/login';
+      }
+    }
   }
 
   function renderLobby(tables) {
