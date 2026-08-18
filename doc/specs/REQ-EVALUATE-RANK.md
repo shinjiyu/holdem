@@ -2,7 +2,7 @@
 id: REQ-EVALUATE-RANK
 module: evaluate
 role: module
-status: claimed
+status: impl-green
 agent: eval-bot
 owns_paths:
   - src/contracts/evaluate/**
@@ -55,10 +55,10 @@ last_updated: 2026-08-18
 - 改 `contracts/shared` 或其它 plugin
 
 ## 验收
-- [ ] 至少覆盖：高牌、一对、两对、三条、顺子、同花、葫芦、四条、同花顺（含 A-5 轮子）
-- [ ] 两手平局返回 tie
-- [ ] 不 import betting/dealer/hosts
-- [ ] `py scripts/adl_check.py` exit 0
+- [x] 至少覆盖：高牌、一对、两对、三条、顺子、同花、葫芦、四条、同花顺（含 A-5 轮子）
+- [x] 两手平局返回 tie
+- [x] 不 import betting/dealer/hosts
+- [x] `py scripts/adl_check.py` exit 0
 
 ## 冲突预检 conflict_check
 - [x] 与其它 ready Issue 的 owns_paths 无交集

@@ -95,8 +95,10 @@ describe("REQ-EVALUATE-RANK compare", () => {
 
   it("trips beat two pair", () => {
     const ev = plugin();
-    const a = ev.rank(req(["5h", "5d"], ["5c", "Kh", "Kd", "3s", "2c"]));
-    const b = ev.rank(req(["Ah", "Ad"], ["5c", "Kh", "Kd", "3s", "2c"]));
+    const a = ev.rank(req(["5h", "5d"], ["5c", "Kh", "Ad", "3s", "2c"]));
+    const b = ev.rank(req(["Ah", "Kd"], ["5c", "Kh", "Ad", "3s", "2c"]));
+    expect(a.category).toBe("trips");
+    expect(b.category).toBe("two-pair");
     expect(ev.compare(a, b).winner).toBe("a");
   });
 
@@ -116,8 +118,10 @@ describe("REQ-EVALUATE-RANK compare", () => {
 
   it("full house beats flush", () => {
     const ev = plugin();
-    const a = ev.rank(req(["Ah", "Ad"], ["Ac", "Kh", "9h", "7h", "5h"]));
-    const b = ev.rank(req(["2h", "3d"], ["Ac", "Kh", "9h", "7h", "5h"]));
+    const a = ev.rank(req(["Ah", "Ad"], ["Ac", "Kh", "Kd", "7h", "5h"]));
+    const b = ev.rank(req(["9h", "2h"], ["Ac", "Kh", "Kd", "7h", "5h"]));
+    expect(a.category).toBe("full-house");
+    expect(b.category).toBe("flush");
     expect(ev.compare(a, b).winner).toBe("a");
   });
 
