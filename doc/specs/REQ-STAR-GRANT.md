@@ -2,7 +2,7 @@
 id: REQ-STAR-GRANT
 module: auth
 role: integrator
-status: blocked
+status: ready
 agent: unassigned
 owns_paths:
   - src/auth/star-grant.ts
@@ -11,12 +11,8 @@ owns_paths:
   - tests/hosts/web/star-claim.test.ts
   - doc/specs/REQ-STAR-GRANT.md
   - doc/design/STAR-GRANT.md
-blocked_by:
-  - REQ-AUTH-GITHUB
-  - REQ-BANK-STACK
-  - REQ-TABLE-SESSION
-  - REQ-WEB-TABLE
-blocked_reason: "needs-impl: H5 claim button (OAuth/bank/session already on main)"
+blocked_by: []
+blocked_reason: ""
 adl_ready: yes
 serialize: true
 last_updated: 2026-08-18
@@ -29,7 +25,7 @@ last_updated: 2026-08-18
 - component: auth
 - role: integrator
 - test_kind: unit
-- status: blocked
+- status: ready
 - serialize: true
 
 ## 目标

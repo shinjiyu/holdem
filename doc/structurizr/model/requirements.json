@@ -118,8 +118,8 @@
       "component": "hosts",
       "slice": "embed",
       "ui": false,
-      "test_kind": "manual",
-      "tests": [],
+      "test_kind": "unit",
+      "tests": ["tests/hosts/web/table.test.ts"],
       "acceptance": "control=manual, no hosting. Same GitHub account clicks through a hand on hosts/web. Agent act is rejected while manual."
     },
     {
@@ -128,8 +128,8 @@
       "component": "hosts",
       "slice": "embed",
       "ui": false,
-      "test_kind": "manual",
-      "tests": [],
+      "test_kind": "unit",
+      "tests": ["tests/hosts/agent/play.test.ts"],
       "acceptance": "Player toggles control=hosted on THEIR seat. H5 clicks rejected (except take-back). Agent with that account's table token finishes the hand via act. Take-back restores manual. Not a second-seat opponent. Cursor is one hosting client."
     },
     {
