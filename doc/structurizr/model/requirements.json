@@ -93,6 +93,16 @@
       "acceptance": "A seat never sees other hole cards; one githubLogin per seat; control is manual|hosted (same account, exclusive). Plugins do not import hosts"
     },
     {
+      "id": "REQ-TABLE-SESSION",
+      "title": "Compose wires plugins into a headless hand (no hosts)",
+      "component": "runtime",
+      "slice": "engine-mvp",
+      "ui": false,
+      "test_kind": "manual",
+      "tests": [],
+      "acceptance": "app/runtime sits fake githubLogins, plays one hand via contracts only; no src/hosts import"
+    },
+    {
       "id": "REQ-AUTH-GITHUB",
       "title": "GitHub OAuth identity; table tokens for agents",
       "component": "auth",

@@ -1,7 +1,7 @@
 ---
 id: REQ-DECK-SHUFFLE
 module: deck
-status: impl-green
+status: done
 agent: lead
 owns_paths:
   - src/contracts/deck/**
