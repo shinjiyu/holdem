@@ -7,11 +7,11 @@ Compatible with the DSH bundle contract (`dsh.bundle.patch` + committed `lib/ind
 ## Install
 
 ```bash
-# GitHub (subdirectory bundle)
-dsh plugin --profile web add github:shinjiyu/holdem#main:dsh-plugin
+# GitHub subdirectory (pnpm path: syntax)
+dsh plugin --profile web add "github:shinjiyu/holdem#main&path:/dsh-plugin"
 
-# Pin + validate via dsh.pub installer
-npx dshpub add shinjiyu/holdem --path dsh-plugin --profile web
+# Prebuilt tarball from GitHub Releases (no prepare/build gate)
+dsh plugin --profile web add https://github.com/shinjiyu/holdem/releases/download/v0.1.1/shinjiyu-dsh-holdem-0.1.0.tgz
 
 # Local checkout
 dsh plugin --profile web add ./dsh-plugin

@@ -13,11 +13,14 @@
 ## DSH 插件（Host）
 
 ```bash
-# 推荐：GitHub 子目录（已含预编译 lib/）
-dsh plugin --profile web add github:shinjiyu/holdem#main:dsh-plugin
+# 推荐：GitHub 子目录（pnpm path 语法；已含预编译 lib/）
+dsh plugin --profile web add "github:shinjiyu/holdem#main&path:/dsh-plugin"
 
-# 或用 dsh.pub 校验安装器（钉死 commit）
-npx dshpub add shinjiyu/holdem --path dsh-plugin --profile web
+# 或钉死 commit（dsh.pub 安装器同格式）
+dsh plugin --profile web add "https://github.com/shinjiyu/holdem.git#099dd37&path:/dsh-plugin"
+
+# 预构建包（免源码 prepare）
+dsh plugin --profile web add https://github.com/shinjiyu/holdem/releases/download/v0.1.1/shinjiyu-dsh-holdem-0.1.0.tgz
 ```
 
 源码包：https://github.com/shinjiyu/holdem/tree/main/dsh-plugin
