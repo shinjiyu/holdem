@@ -2,8 +2,8 @@
 id: REQ-AUTH-GITHUB
 module: auth
 role: integrator
-status: ready
-agent: unassigned
+status: claimed
+agent: auth-bot
 owns_paths:
   - src/auth/**
   - tests/auth/**
@@ -22,7 +22,7 @@ last_updated: 2026-08-18
 - component: auth
 - role: integrator
 - test_kind: unit
-- status: ready
+- status: claimed
 
 ## 目标
 GitHub OAuth 得到 `githubLogin`；为「同一帐号同一座位」签发桌令牌。不加星、不发币。
