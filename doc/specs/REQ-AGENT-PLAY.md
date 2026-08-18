@@ -2,18 +2,15 @@
 id: REQ-AGENT-PLAY
 module: hosts
 role: integrator
-status: blocked
+status: ready
 agent: unassigned
 owns_paths:
   - src/hosts/agent/**
   - src/hosts/cli/**
   - tests/hosts/agent/**
   - doc/specs/REQ-AGENT-PLAY.md
-blocked_by:
-  - REQ-TABLE-SESSION
-  - REQ-AUTH-GITHUB
-  - REQ-SEAT-PORT
-blocked_reason: "needs-impl: session + OAuth + seat control"
+blocked_by: []
+blocked_reason: ""
 adl_ready: yes
 serialize: false
 last_updated: 2026-08-18
@@ -26,7 +23,7 @@ last_updated: 2026-08-18
 - component: hosts
 - role: integrator
 - test_kind: manual
-- status: blocked
+- status: ready
 
 ## 目标
 同一 GitHub 帐号把 **自己的座位** 托管给 AI。MCP/HTTP：`hand_state` / `legal_actions` / `act` / `set_control`。Cursor 只是客户端之一。

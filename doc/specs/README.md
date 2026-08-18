@@ -12,9 +12,9 @@ GitHub：https://github.com/shinjiyu/holdem/issues
 |------|--------|------|--------|
 | 0 | ADL-GATE, CONTRACTS-TABLE, LOGIC-HEADLESS, DECK-SHUFFLE | done | — |
 | 1 | EVALUATE / BETTING / BANK / SEAT / AUTH | **done** | #1–#5 已关 |
-| 2 | DEALER-STREET | **ready** | [#6](https://github.com/shinjiyu/holdem/issues/6) |
-| 3 | TABLE-SESSION | blocked_by dealer + seat | [#7](https://github.com/shinjiyu/holdem/issues/7) |
-| 4 | WEB-TABLE, AGENT-PLAY | blocked_by table-session + auth；路径 `hosts/web` vs `hosts/agent` 互斥 | [#8](https://github.com/shinjiyu/holdem/issues/8) [#9](https://github.com/shinjiyu/holdem/issues/9) |
+| 2 | DEALER-STREET | **done** | [#6](https://github.com/shinjiyu/holdem/issues/6) |
+| 3 | TABLE-SESSION | **done** | [#7](https://github.com/shinjiyu/holdem/issues/7) |
+| 4 | WEB-TABLE, AGENT-PLAY | **ready**（session + auth 已在 main） | [#8](https://github.com/shinjiyu/holdem/issues/8) [#9](https://github.com/shinjiyu/holdem/issues/9) |
 | 5 | STAR-GRANT | blocked_by auth + bank + table-session + web | [#10](https://github.com/shinjiyu/holdem/issues/10) |
 
 Lane A：wave 1 四条 plugin。AUTH 虽是 infra，路径 `src/auth/**` 与 plugin 不交。  

@@ -48,8 +48,8 @@
       "component": "evaluate",
       "slice": "engine-mvp",
       "ui": false,
-      "test_kind": "manual",
-      "tests": [],
+      "test_kind": "unit",
+      "tests": ["tests/evaluate/rank.test.ts"],
       "acceptance": "EvaluatePort ranks 5-of-7; ties split pots via contracts; no import of betting/dealer"
     },
     {
@@ -58,8 +58,8 @@
       "component": "betting",
       "slice": "engine-mvp",
       "ui": false,
-      "test_kind": "manual",
-      "tests": [],
+      "test_kind": "unit",
+      "tests": ["tests/betting/legal-actions.test.ts"],
       "acceptance": "BettingQuery returns fold/check/call/bet/raise/allin as legal; side pots later spec; config supplies blinds"
     },
     {
@@ -68,8 +68,8 @@
       "component": "dealer",
       "slice": "engine-mvp",
       "ui": false,
-      "test_kind": "manual",
-      "tests": [],
+      "test_kind": "unit",
+      "tests": ["tests/dealer/street.test.ts"],
       "acceptance": "Dealer advances only via contracts ports; never imports deck/betting/evaluate"
     },
     {
@@ -78,8 +78,8 @@
       "component": "bank",
       "slice": "engine-mvp",
       "ui": false,
-      "test_kind": "manual",
-      "tests": [],
+      "test_kind": "unit",
+      "tests": ["tests/bank/stack.test.ts"],
       "acceptance": "BankPort posts SB/BB from config; settle writes stack deltas; no host import"
     },
     {
@@ -88,8 +88,8 @@
       "component": "seat",
       "slice": "engine-mvp",
       "ui": false,
-      "test_kind": "manual",
-      "tests": [],
+      "test_kind": "unit",
+      "tests": ["tests/seat/sit-control.test.ts"],
       "acceptance": "A seat never sees other hole cards; one githubLogin per seat; control is manual|hosted (same account, exclusive). Plugins do not import hosts"
     },
     {
@@ -98,8 +98,8 @@
       "component": "runtime",
       "slice": "engine-mvp",
       "ui": false,
-      "test_kind": "manual",
-      "tests": [],
+      "test_kind": "unit",
+      "tests": ["tests/app/session.test.ts", "tests/runtime/hand-order.test.ts"],
       "acceptance": "app/runtime sits fake githubLogins, plays one hand via contracts only; no src/hosts import"
     },
     {
@@ -108,8 +108,8 @@
       "component": "auth",
       "slice": "embed",
       "ui": false,
-      "test_kind": "manual",
-      "tests": [],
+      "test_kind": "unit",
+      "tests": ["tests/auth/oauth.test.ts", "tests/auth/table-token.test.ts"],
       "acceptance": "Human logs in via top-level GitHub OAuth. Hosting token is bound to the SAME githubLogin+seat (the player's own AI, not an opponent). Plugins do not import GitHub SDK. See doc/design/HOST-EMBED.md"
     },
     {

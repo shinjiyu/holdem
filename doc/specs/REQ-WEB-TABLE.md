@@ -2,16 +2,14 @@
 id: REQ-WEB-TABLE
 module: hosts
 role: integrator
-status: blocked
+status: ready
 agent: unassigned
 owns_paths:
   - src/hosts/web/**
   - tests/hosts/web/**
   - doc/specs/REQ-WEB-TABLE.md
-blocked_by:
-  - REQ-TABLE-SESSION
-  - REQ-AUTH-GITHUB
-blocked_reason: "needs-impl: headless session + OAuth"
+blocked_by: []
+blocked_reason: ""
 adl_ready: yes
 serialize: false
 last_updated: 2026-08-18
@@ -24,7 +22,7 @@ last_updated: 2026-08-18
 - component: hosts
 - role: integrator
 - test_kind: manual
-- status: blocked
+- status: ready
 
 ## 目标
 简陋 H5：GitHub 登录后 **人控** 点完一手。托管开关可以有，但「托管打完」归 REQ-AGENT-PLAY。加星按钮归 REQ-STAR-GRANT。
