@@ -2,8 +2,8 @@
 id: REQ-SEAT-PORT
 module: seat
 role: module
-status: ready
-agent: unassigned
+status: claimed
+agent: seat-bot
 owns_paths:
   - src/contracts/seat/**
   - src/seat/**
@@ -24,7 +24,7 @@ last_updated: 2026-08-18
 - component: seat
 - role: module
 - test_kind: unit
-- status: ready
+- status: claimed
 
 ## 目标
 一个座位 = 一个 `githubLogin`。`control` 人控/托管互斥。`SeatView` 不含别人底牌。
