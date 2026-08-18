@@ -11,8 +11,8 @@ GitHub：https://github.com/shinjiyu/holdem/issues
 | Wave | specs | 状态 | Issues |
 |------|--------|------|--------|
 | 0 | ADL-GATE, CONTRACTS-TABLE, LOGIC-HEADLESS, DECK-SHUFFLE | done | — |
-| 1 | EVALUATE-RANK, BETTING-LEGAL, BANK-STACK, SEAT-PORT, AUTH-GITHUB | **ready，可并行** | [#1](https://github.com/shinjiyu/holdem/issues/1) [#2](https://github.com/shinjiyu/holdem/issues/2) [#3](https://github.com/shinjiyu/holdem/issues/3) [#4](https://github.com/shinjiyu/holdem/issues/4) [#5](https://github.com/shinjiyu/holdem/issues/5) |
-| 2 | DEALER-STREET | blocked_by wave 1 的 evaluate/betting/bank | [#6](https://github.com/shinjiyu/holdem/issues/6) |
+| 1 | EVALUATE / BETTING / BANK / SEAT / AUTH | **done** | #1–#5 已关 |
+| 2 | DEALER-STREET | **ready** | [#6](https://github.com/shinjiyu/holdem/issues/6) |
 | 3 | TABLE-SESSION | blocked_by dealer + seat | [#7](https://github.com/shinjiyu/holdem/issues/7) |
 | 4 | WEB-TABLE, AGENT-PLAY | blocked_by table-session + auth；路径 `hosts/web` vs `hosts/agent` 互斥 | [#8](https://github.com/shinjiyu/holdem/issues/8) [#9](https://github.com/shinjiyu/holdem/issues/9) |
 | 5 | STAR-GRANT | blocked_by auth + bank + table-session + web | [#10](https://github.com/shinjiyu/holdem/issues/10) |

@@ -2,7 +2,7 @@
 id: REQ-DEALER-STREET
 module: dealer
 role: module
-status: blocked
+status: ready
 agent: unassigned
 owns_paths:
   - src/contracts/dealer/**
@@ -10,11 +10,8 @@ owns_paths:
   - tests/dealer/**
   - tests/contracts/dealer/**
   - doc/specs/REQ-DEALER-STREET.md
-blocked_by:
-  - REQ-EVALUATE-RANK
-  - REQ-BETTING-LEGAL
-  - REQ-BANK-STACK
-blocked_reason: "needs-impl: evaluate/betting/bank ports must exist on main (deck already done)"
+blocked_by: []
+blocked_reason: ""
 adl_ready: yes
 serialize: false
 last_updated: 2026-08-18
@@ -27,7 +24,7 @@ last_updated: 2026-08-18
 - component: dealer
 - role: module
 - test_kind: unit
-- status: blocked
+- status: ready
 
 ## 目标
 街道：preflop → flop → turn → river → showdown。只通过 **contracts 端口** 调 Deal / Betting / Evaluate，**禁止 import 那些 plugin**。
