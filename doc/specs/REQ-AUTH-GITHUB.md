@@ -2,8 +2,8 @@
 id: REQ-AUTH-GITHUB
 module: auth
 role: integrator
-status: ready
-agent: unassigned
+status: impl-green
+agent: auth-bot
 owns_paths:
   - src/auth/**
   - tests/auth/**
@@ -22,7 +22,7 @@ last_updated: 2026-08-18
 - component: auth
 - role: integrator
 - test_kind: unit
-- status: ready
+- status: impl-green
 
 ## 目标
 GitHub OAuth 得到 `githubLogin`；为「同一帐号同一座位」签发桌令牌。不加星、不发币。
@@ -49,10 +49,10 @@ GitHub OAuth 得到 `githubLogin`；为「同一帐号同一座位」签发桌�
 - 真机 GitHub 应用创建（lead 配环境变量，不进仓库密钥）
 
 ## 验收
-- [ ] mock OAuth 后得到 githubLogin
-- [ ] 令牌与 login+seat 绑定；错座位校验失败
-- [ ] 不出现 octokit import 在 `src/deck|evaluate|betting|dealer|bank|seat`
-- [ ] `py scripts/adl_check.py` exit 0
+- [x] mock OAuth 后得到 githubLogin
+- [x] 令牌与 login+seat 绑定；错座位校验失败
+- [x] 不出现 octokit import 在 `src/deck|evaluate|betting|dealer|bank|seat`
+- [x] `py scripts/adl_check.py` exit 0
 
 ## 冲突预检 conflict_check
 - [x] 与 wave 1 plugin Issue 路径无交集
