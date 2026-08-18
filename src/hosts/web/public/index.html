@@ -305,6 +305,7 @@
   <section id="table" class="table-wrap hidden">
     <div class="row table-toolbar card">
       <button class="ghost" id="btnBack">← 回大厅（离桌）</button>
+      <button class="ghost" id="btnToken">复制 AI 令牌</button>
       <strong id="tableTitle"></strong>
       <span class="muted" id="status"></span>
     </div>
@@ -728,7 +729,21 @@
   $('btnCreate').onclick = () => createTable().catch((e) => showErr(e.message));
   $('btnRefresh').onclick = () => refreshLobby().catch((e) => showErr(e.message));
   $('btnBack').onclick = () => leaveTable().catch((e) => showErr(e.message));
-
+  $('btnToken').onclick = () => {
+    api('/api/agent/token', { method: 'POST', body: '{}' })
+      .then(async (t) => {
+        const text = JSON.stringify({
+          baseUrl: t.baseUrl,
+          githubLogin: t.githubLogin,
+          tableId: t.tableId,
+          seat: t.seat,
+          token: t.token,
+        }, null, 2);
+        await navigator.clipboard.writeText(text);
+        alert('已复制桌令牌 JSON，可贴到 DSH / 配置里使用');
+      })
+      .catch((e) => showErr(e.message));
+  };
   boot().catch((e) => showErr(e.message));
   setInterval(() => {
     if (!me?.loggedIn) return;

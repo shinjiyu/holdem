@@ -1,13 +1,21 @@
 # holdem
 
-无限制德州引擎：**同一 GitHub 帐号的座位，人控或 AI 托管（互斥）。** H5 给人点；MCP 给自己的 AI。Cursor 只是托管客户端之一。
+无限制德州引擎：**同一 GitHub 帐号的座位，人控或 AI 托管（互斥）。** H5 给人点；MCP/DSH 给自己的 AI。
 
 - 玩法插件无 UI、无宿主 SDK。
-- `hosts/web` = 人控 +「托管给我的 AI / 收回」。
-- `hosts/agent` = 托管通道（同一帐号的桌令牌）。Cursor / Codex / DSH 同级。
-- `auth` = GitHub OAuth + 绑**同一帐号同一座位**的令牌。
+- `hosts/web` = 人控 H5（https://kuroneko.chat/holdem/）。
+- `hosts/agent` = 托管通道（桌令牌 + `/api/agent/*`）。
+- **DSH 插件**：[`dsh-plugin/`](dsh-plugin/) → `@shinjiyu/dsh-holdem`
 
-细节：[`doc/design/HOST-EMBED.md`](doc/design/HOST-EMBED.md) · 理论：[`doc/structurizr/CORE-THEORY.md`](doc/structurizr/CORE-THEORY.md)
+细节：[`doc/design/HOST-EMBED.md`](doc/design/HOST-EMBED.md) · DSH 安装：[`dsh-plugin/README.md`](dsh-plugin/README.md)
+
+## DSH 插件
+
+```bash
+dsh plugin --profile web add github:shinjiyu/holdem#main:dsh-plugin
+```
+
+桌上点 **复制 AI 令牌** → DSH 调 `holdem_set_control(hosted)` → `holdem_act` 循环。
 
 ## 快速检查
 

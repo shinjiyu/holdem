@@ -10,9 +10,10 @@ import { createGithubStarFetcher, StarGrantLedger } from "../../auth/star-grant"
 import { TableSession } from "../../app/table-session";
 import { WebTableHost } from "./web-table";
 import { StarClaimHost } from "./star-claim";
+import { AgentPlayApi, type AgentIdentity } from "../agent/agent-api";
 import { BankPlugin } from "../../bank";
 import { DEFAULT_TABLE_CONFIG } from "../../config";
-import type { ActionIntent } from "../../contracts/shared/dto";
+import type { ActionIntent, ControlMode } from "../../contracts/shared/dto";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, "public");
@@ -609,8 +610,103 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, path: string
   }
 
   if (method === "POST" && path === "/api/control") {
-    // Phase-2 AI hosting: H5 no longer toggles control. Keep API for agent tests.
-    send(res, 501, { error: "AI hosting deferred to phase 2" });
+    const ctx = await needTable();
+    if (!ctx) return;
+    const body = await readJson<{ control: "manual" | "hosted" }>(req);
+    try {
+      const view =
+        body.control === "manual"
+          ? ctx.room.host.takeBack(ctx.seat)
+          : ctx.room.host.setControl({ seat: ctx.seat, control: "hosted", host: "dsh" });
+      send(res, 200, { view, ...tablePayload(ctx.room, ctx.seat) });
+    } catch (e) {
+      send(res, 400, { error: e instanceof Error ? e.message : String(e) });
+    }
+    return;
+  }
+
+  // ---- Agent / DSH token API (no cookie; table token in body) ----
+  if (method === "POST" && path === "/api/agent/token") {
+    const ctx = await needTable();
+    if (!ctx) return;
+    const issued = auth.issueTableToken({
+      githubLogin: ctx.player.githubLogin,
+      tableId: ctx.room.id,
+      seat: ctx.seat,
+    });
+    send(res, 200, {
+      ...issued,
+      baseUrl: PUBLIC_BASE,
+      tableUrl: `${PUBLIC_BASE}/`,
+      hint: "Put token into DSH holdem tools. Call set_control hosted before act.",
+    });
+    return;
+  }
+
+  const withAgent = async (
+    run: (api: AgentPlayApi, id: AgentIdentity, body: Record<string, unknown>) => unknown,
+  ): Promise<boolean> => {
+    const body = await readJson<Record<string, unknown>>(req);
+    const id: AgentIdentity = {
+      githubLogin: String(body.githubLogin ?? ""),
+      tableId: String(body.tableId ?? ""),
+      seat: Number(body.seat),
+      token: String(body.token ?? ""),
+    };
+    if (!id.token || !id.githubLogin || !id.tableId || Number.isNaN(id.seat)) {
+      send(res, 400, { error: "need githubLogin, tableId, seat, token" });
+      return true;
+    }
+    const room = getRoom(id.tableId);
+    if (!room) {
+      send(res, 404, { error: "table not found" });
+      return true;
+    }
+    const api = new AgentPlayApi(room.session, auth);
+    try {
+      const out = run(api, id, body);
+      send(res, 200, out);
+    } catch (e) {
+      send(res, 400, { error: e instanceof Error ? e.message : String(e) });
+    }
+    return true;
+  };
+
+  if (method === "POST" && path === "/api/agent/hand_state") {
+    await withAgent((api, id) => ({
+      view: api.handState(id),
+      handActive: getRoom(id.tableId)!.session.isHandActive(),
+    }));
+    return;
+  }
+
+  if (method === "POST" && path === "/api/agent/legal_actions") {
+    await withAgent((api, id) => ({ legal: api.legalActions(id) }));
+    return;
+  }
+
+  if (method === "POST" && path === "/api/agent/act") {
+    await withAgent((api, id, body) => {
+      const intent = body.intent as ActionIntent | undefined;
+      if (!intent?.kind) throw new Error("intent.kind required");
+      return { view: api.act(id, intent) };
+    });
+    return;
+  }
+
+  if (method === "POST" && path === "/api/agent/set_control") {
+    await withAgent((api, id, body) => {
+      const control = body.control as ControlMode | undefined;
+      if (control !== "manual" && control !== "hosted") {
+        throw new Error("control must be manual|hosted");
+      }
+      return { view: api.setControl(id, control) };
+    });
+    return;
+  }
+
+  if (method === "POST" && path === "/api/agent/result") {
+    await withAgent((api, id) => ({ result: api.result(id) }));
     return;
   }
 
