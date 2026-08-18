@@ -25,6 +25,7 @@ describe("shared table DTOs", () => {
       toCall: 100,
       stack: 9900,
       actorsSeat: 0,
+      actionDeadlineMs: null,
       legal: [{ kind: "fold" }, { kind: "call" }, { kind: "raise", min: 200, max: 9900 }],
     };
     const intent: ActionIntent = { kind: "call" };

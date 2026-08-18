@@ -652,14 +652,8 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, path: string
   }
 
   if (method === "POST" && path === "/api/control") {
-    const ctx = await needTable();
-    if (!ctx) return;
-    const body = await readJson<{ control: "manual" | "hosted" }>(req);
-    const view =
-      body.control === "manual"
-        ? ctx.room.host.takeBack(ctx.seat)
-        : ctx.room.host.setControl({ seat: ctx.seat, control: "hosted", host: "cursor" });
-    send(res, 200, { view });
+    // Phase-2 AI hosting: H5 no longer toggles control. Keep API for agent tests.
+    send(res, 501, { error: "AI hosting deferred to phase 2" });
     return;
   }
 
@@ -767,3 +761,14 @@ const server = createServer(async (req, res) => {
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`holdem listening on 127.0.0.1:${PORT} public=${PUBLIC_BASE}`);
 });
+
+// Force check/fold when a seat's action clock expires (even if nobody is polling)
+setInterval(() => {
+  for (const room of rooms.values()) {
+    try {
+      room.session.expireTimedOutActions();
+    } catch (e) {
+      console.error("expireTimedOutActions", room.id, e);
+    }
+  }
+}, 1000);

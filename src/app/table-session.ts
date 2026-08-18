@@ -36,12 +36,18 @@ export class TableSession {
   private resultCache: HandResult | null = null;
   private handActive = false;
   private actorsSeat: number | null = null;
+  private actionDeadlineMs: number | null = null;
   private folded = new Set<number>();
   /** Seats that have acted since the last bet/raise (or since street open). */
   private acted = new Set<number>();
+  private readonly clock: () => number;
 
-  constructor(config: TableConfig = DEFAULT_TABLE_CONFIG) {
+  constructor(
+    config: TableConfig = DEFAULT_TABLE_CONFIG,
+    clock: () => number = () => Date.now(),
+  ) {
     this.config = config;
+    this.clock = clock;
     this.dealer = new DealerPlugin({
       deal: this.deck,
       evaluate: this.evaluate,
@@ -101,11 +107,12 @@ export class TableSession {
       pot: this.config.smallBlind + this.config.bigBlind,
     });
     this.handActive = true;
-    this.actorsSeat = this.firstActorPreflop(sbSeat, bbSeat);
     this.acted.clear();
+    this.setActor(this.firstActorPreflop(sbSeat, bbSeat));
   }
 
   legal(seat: number) {
+    this.expireTimedOutActions();
     if (!this.handActive || this.actorsSeat !== seat) return [];
     return this.betting.legal(seat);
   }
@@ -115,6 +122,22 @@ export class TableSession {
     if (this.actorsSeat !== seat) {
       throw new Error(`not your turn (waiting seat ${this.actorsSeat})`);
     }
+    this.applyAct(seat, intent);
+  }
+
+  /** Apply check-or-fold for any seat whose deadline has passed. Safe to call often. */
+  expireTimedOutActions(): void {
+    for (let i = 0; i < 12; i++) {
+      if (!this.handActive || this.actorsSeat == null || this.actionDeadlineMs == null) return;
+      if (this.clock() < this.actionDeadlineMs) return;
+      const seat = this.actorsSeat;
+      const legal = this.betting.legal(seat);
+      const canCheck = legal.some((a) => a.kind === "check");
+      this.applyAct(seat, { kind: canCheck ? "check" : "fold" });
+    }
+  }
+
+  private applyAct(seat: number, intent: ActionIntent): void {
     const cost = this.costOf(seat, intent);
     this.betting.apply(seat, intent);
     this.remaining.set(seat, (this.remaining.get(seat) ?? 0) - cost);
@@ -138,12 +161,12 @@ export class TableSession {
     }
 
     if (this.streetBettingComplete()) {
-      this.actorsSeat = null;
+      this.setActor(null);
       this.advanceStreet();
       return;
     }
 
-    this.actorsSeat = this.nextActor(seat);
+    this.setActor(this.nextActor(seat));
   }
 
   /** Close the current betting street and deal the next board (or showdown). */
@@ -157,7 +180,7 @@ export class TableSession {
     if (this.dealer.street === "showdown") {
       this.resultCache = this.settleShowdown();
       this.handActive = false;
-      this.actorsSeat = null;
+      this.setActor(null);
       return;
     }
     this.betting.startStreet({
@@ -165,7 +188,7 @@ export class TableSession {
       pot: this.betting.pot,
     });
     this.acted.clear();
-    this.actorsSeat = this.firstActorPostflop();
+    this.setActor(this.firstActorPostflop());
   }
 
   result(): HandResult | null {
@@ -173,6 +196,7 @@ export class TableSession {
   }
 
   view(seat: number): SeatView {
+    this.expireTimedOutActions();
     const base = this.seat.view({ seat });
     const hole = this.dealer.hole(seat) ?? [];
     const legal = this.legal(seat);
@@ -186,8 +210,15 @@ export class TableSession {
       toCall: this.betting.toCall(seat),
       stack: this.remaining.get(seat) ?? this.bank.stack(seat),
       actorsSeat: this.actorsSeat,
+      actionDeadlineMs: this.actionDeadlineMs,
       legal,
     };
+  }
+
+  private setActor(seat: number | null): void {
+    this.actorsSeat = seat;
+    this.actionDeadlineMs =
+      seat == null ? null : this.clock() + this.config.actionTimeoutMs;
   }
 
   private seatOrder(): number[] {
@@ -249,7 +280,7 @@ export class TableSession {
     const winner = live[0];
     if (winner == null) {
       this.handActive = false;
-      this.actorsSeat = null;
+      this.setActor(null);
       return;
     }
     const pot = this.betting.pot;
@@ -262,7 +293,7 @@ export class TableSession {
       shown: [],
     };
     this.handActive = false;
-    this.actorsSeat = null;
+    this.setActor(null);
   }
 
   private stackSnapshot(): Record<number, number> {

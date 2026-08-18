@@ -65,6 +65,8 @@ export interface SeatView {
   toCall: number;
   stack: number;
   actorsSeat: number | null;
+  /** Unix ms when current actor must act; null if no active turn. */
+  actionDeadlineMs: number | null;
   legal: LegalAction[];
 }
 

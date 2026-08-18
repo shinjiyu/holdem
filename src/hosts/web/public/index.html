@@ -499,28 +499,13 @@
     const v = payload.view;
     if (!v) return;
     lastView = payload;
-    document.body.classList.toggle('hosted', v.you.control === 'hosted');
     $('tableTitle').textContent = `桌 ${payload.tableId || me.tableId || ''}`;
-    $('status').textContent = `@${v.you.githubLogin} · ${v.you.control} · seat ${v.seat}`;
+    $('status').textContent = `@${v.you.githubLogin} · seat ${v.seat}`;
     renderFelt(payload);
+    updateTurnHint(payload);
 
     const handActive = payload.handActive ?? (v.actorsSeat != null);
-    const myTurn = handActive && v.actorsSeat === v.seat && v.you.control === 'manual';
-    const hint = $('turnHint');
-    if (!handActive) {
-      hint.textContent = payload.result
-        ? '本手结束，可再开一手'
-        : '人齐后点「开一手」';
-    } else if (myTurn) {
-      hint.textContent = '轮到你行动';
-    } else if (v.actorsSeat != null) {
-      const who = (payload.seats || []).find((s) => s.seat === v.actorsSeat);
-      hint.textContent = who?.githubLogin
-        ? `等待 @${who.githubLogin} 行动…`
-        : `等待座位 #${v.actorsSeat}…`;
-    } else {
-      hint.textContent = '';
-    }
+    const myTurn = handActive && v.actorsSeat === v.seat;
 
     const box = $('actions');
     box.innerHTML = '';
@@ -533,32 +518,53 @@
       box.appendChild(start);
     }
 
-    if (v.you.control === 'hosted') {
-      const back = document.createElement('button');
-      back.className = 'warn';
-      back.textContent = '收回控制';
-      back.onclick = () => api('/api/control', { method: 'POST', body: JSON.stringify({ control: 'manual' }) }).then(refreshTable).catch((e) => showErr(e.message));
-      box.appendChild(back);
-    } else {
-      const host = document.createElement('button');
-      host.textContent = '托管给 AI';
-      host.onclick = () => api('/api/control', { method: 'POST', body: JSON.stringify({ control: 'hosted' }) }).then(refreshTable).catch((e) => showErr(e.message));
-      box.appendChild(host);
-      if (myTurn) {
-        for (const a of (payload.legal || v.legal || [])) {
-          const b = document.createElement('button');
-          b.className = 'act';
-          b.textContent = actionLabel(a);
-          b.onclick = () => api('/api/act', {
-            method: 'POST',
-            body: JSON.stringify({ intent: { kind: a.kind, amount: a.min } }),
-          }).then(refreshTable).catch((e) => showErr(e.message));
-          box.appendChild(b);
-        }
+    if (myTurn) {
+      for (const a of (payload.legal || v.legal || [])) {
+        const b = document.createElement('button');
+        b.className = 'act';
+        b.textContent = actionLabel(a);
+        b.onclick = () => api('/api/act', {
+          method: 'POST',
+          body: JSON.stringify({ intent: { kind: a.kind, amount: a.min } }),
+        }).then(refreshTable).catch((e) => showErr(e.message));
+        box.appendChild(b);
       }
     }
 
     $('result').textContent = payload.result ? ('结算: ' + JSON.stringify(payload.result)) : '';
+  }
+
+  function secondsLeft(deadlineMs) {
+    if (deadlineMs == null) return null;
+    return Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
+  }
+
+  function updateTurnHint(payload) {
+    const v = payload?.view;
+    const hint = $('turnHint');
+    if (!v) { hint.textContent = ''; return; }
+    const handActive = payload.handActive ?? (v.actorsSeat != null);
+    const myTurn = handActive && v.actorsSeat === v.seat;
+    const sec = secondsLeft(v.actionDeadlineMs);
+    const clock = sec != null ? ` · ${sec}s` : '';
+    if (!handActive) {
+      hint.textContent = payload.result
+        ? '本手结束，可再开一手'
+        : '人齐后点「开一手」';
+      return;
+    }
+    if (myTurn) {
+      hint.textContent = `轮到你行动${clock}（超时将自动过牌，不能过则弃牌）`;
+      return;
+    }
+    if (v.actorsSeat != null) {
+      const who = (payload.seats || []).find((s) => s.seat === v.actorsSeat);
+      hint.textContent = who?.githubLogin
+        ? `等待 @${who.githubLogin} 行动${clock}`
+        : `等待座位 #${v.actorsSeat}${clock}`;
+      return;
+    }
+    hint.textContent = '';
   }
 
   async function refreshTable() {
@@ -597,7 +603,10 @@
     if (viewMode === 'lobby') refreshLobby().catch(() => {});
     else refreshTable().catch(() => {});
     api('/api/me').then((m) => { me = m; renderAuth(); }).catch(() => {});
-  }, 3000);
+  }, 2000);
+  setInterval(() => {
+    if (viewMode === 'table' && lastView) updateTurnHint(lastView);
+  }, 250);
 </script>
 </body>
 </html>

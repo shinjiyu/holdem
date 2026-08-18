@@ -2,6 +2,8 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createTableApp } from "../../src/app";
+import { TableSession } from "../../src/app/table-session";
+import { DEFAULT_TABLE_CONFIG } from "../../src/config";
 
 function walkTs(dir: string): string[] {
   const out: string[] = [];
@@ -77,6 +79,26 @@ describe("REQ-TABLE-SESSION", () => {
     expect(session.view(1).pot).toBe(before + 100);
     expect(session.view(0).toCall).toBe(100);
     expect(session.view(0).actorsSeat).toBe(0);
+  });
+
+  it("timeout auto-checks when legal, else folds", () => {
+    let now = 1_000;
+    const session = new TableSession(
+      { ...DEFAULT_TABLE_CONFIG, actionTimeoutMs: 1_000 },
+      () => now,
+    );
+    session.sit({ seat: 0, githubLogin: "alice" });
+    session.sit({ seat: 1, githubLogin: "bob" });
+    session.startHand({ button: 0, seed: 9 });
+
+    expect(session.view(0).actorsSeat).toBe(0);
+    expect(session.view(0).actionDeadlineMs).toBe(2_000);
+
+    // SB facing BB: cannot check → timeout folds → bob wins
+    now = 2_001;
+    session.expireTimedOutActions();
+    expect(session.isHandActive()).toBe(false);
+    expect(session.result()?.winners[0]?.seat).toBe(1);
   });
 });
 

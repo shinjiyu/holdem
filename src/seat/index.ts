@@ -54,6 +54,7 @@ export class SeatPlugin implements HeadlessPlugin, SeatPort {
       toCall: 0,
       stack: 0,
       actorsSeat: null,
+      actionDeadlineMs: null,
       legal: [],
     };
   }
