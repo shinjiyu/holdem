@@ -2,18 +2,16 @@
 id: REQ-TABLE-SESSION
 module: runtime
 role: integrator
-status: blocked
-agent: unassigned
+status: impl-green
+agent: lead
 owns_paths:
   - src/app/**
   - src/runtime/**
   - tests/app/**
   - tests/runtime/**
   - doc/specs/REQ-TABLE-SESSION.md
-blocked_by:
-  - REQ-DEALER-STREET
-  - REQ-SEAT-PORT
-blocked_reason: "needs-impl: dealer + seat on main"
+blocked_by: []
+blocked_reason: ""
 adl_ready: yes
 serialize: true
 last_updated: 2026-08-18
@@ -26,7 +24,7 @@ last_updated: 2026-08-18
 - component: runtime
 - role: integrator
 - test_kind: unit
-- status: blocked
+- status: impl-green
 - serialize: true（Lane B：app/runtime）
 
 ## 目标
@@ -42,9 +40,9 @@ last_updated: 2026-08-18
 不要改 `tests/headless-import-ban.test.ts`。
 
 ## 验收
-- [ ] 两个假帐号坐下，打完一手，有 HandResult
-- [ ] 不 import `src/hosts`
-- [ ] `py scripts/adl_check.py` exit 0
+- [x] 两个假帐号坐下，打完一手，有 HandResult
+- [x] 不 import `src/hosts`
+- [x] `py scripts/adl_check.py` exit 0
 
 ## 依赖
 - blocked_by: REQ-DEALER-STREET, REQ-SEAT-PORT（evaluate/betting/bank/deck 已被 dealer 挡住）

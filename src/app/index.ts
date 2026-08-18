@@ -1,25 +1,15 @@
-import { DEFAULT_TABLE_CONFIG } from "../config";
 import { createRuntime } from "../runtime";
-import { DeckPlugin } from "../deck";
-import { EvaluatePlugin } from "../evaluate";
-import { BettingPlugin } from "../betting";
-import { DealerPlugin } from "../dealer";
-import { BankPlugin } from "../bank";
-import { SeatPlugin } from "../seat";
+import { TableSession } from "./table-session";
 
-/** Session shell. Hosts are wired by integrator; not imported here yet. */
+export { TableSession } from "./table-session";
+
+/** Session shell. Hosts are wired by integrator; not imported here. */
 export function createTableApp() {
-  const plugins = [
-    new DealerPlugin(),
-    new DeckPlugin(),
-    new BettingPlugin(),
-    new EvaluatePlugin(),
-    new BankPlugin(),
-    new SeatPlugin(),
-  ];
-  const runtime = createRuntime(plugins);
+  const session = new TableSession();
+  const runtime = createRuntime(session.plugins());
   return {
-    config: DEFAULT_TABLE_CONFIG,
+    config: session.config,
     runtime,
+    session,
   };
 }

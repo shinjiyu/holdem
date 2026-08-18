@@ -2,8 +2,8 @@
 id: REQ-DEALER-STREET
 module: dealer
 role: module
-status: ready
-agent: unassigned
+status: impl-green
+agent: lead
 owns_paths:
   - src/contracts/dealer/**
   - src/dealer/**
@@ -24,7 +24,7 @@ last_updated: 2026-08-18
 - component: dealer
 - role: module
 - test_kind: unit
-- status: ready
+- status: impl-green
 
 ## 目标
 街道：preflop → flop → turn → river → showdown。只通过 **contracts 端口** 调 Deal / Betting / Evaluate，**禁止 import 那些 plugin**。
@@ -46,9 +46,9 @@ last_updated: 2026-08-18
 - `doc/specs/REQ-DEALER-STREET.md`
 
 ## 验收
-- [ ] 街道顺序正确；未结束 betting 不能发 flop
-- [ ] 不 `import` 自 `src/deck|betting|evaluate|bank|hosts`
-- [ ] `py scripts/adl_check.py` exit 0
+- [x] 街道顺序正确；未结束 betting 不能发 flop
+- [x] 不 `import` 自 `src/deck|betting|evaluate|bank|hosts`
+- [x] `py scripts/adl_check.py` exit 0
 
 ## 依赖
 - blocked_by: REQ-EVALUATE-RANK, REQ-BETTING-LEGAL, REQ-BANK-STACK（端口文件在 main 上）

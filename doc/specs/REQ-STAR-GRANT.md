@@ -16,7 +16,7 @@ blocked_by:
   - REQ-BANK-STACK
   - REQ-TABLE-SESSION
   - REQ-WEB-TABLE
-blocked_reason: "needs-impl: OAuth, BankPort.grant, session, H5 claim button"
+blocked_reason: "needs-impl: H5 claim button (OAuth/bank/session already on main)"
 adl_ready: yes
 serialize: true
 last_updated: 2026-08-18
