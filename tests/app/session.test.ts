@@ -25,17 +25,21 @@ describe("REQ-TABLE-SESSION", () => {
     expect(session.view(1).hole).toHaveLength(2);
     expect(session.view(0).hole).not.toEqual(session.view(1).hole);
     expect(session.view(0).street).toBe("preflop");
+    expect(session.view(0).actorsSeat).toBe(0); // HU: SB/button acts first
 
     session.act(0, { kind: "call" });
+    expect(session.view(0).actorsSeat).toBe(1);
     session.act(1, { kind: "check" });
-    session.advanceStreet();
+    // betting complete → auto flop
     expect(session.view(0).street).toBe("flop");
     expect(session.view(0).board).toHaveLength(3);
+    expect(session.view(0).actorsSeat).toBe(1); // postflop: left of button
 
     for (const street of ["turn", "river", "showdown"] as const) {
-      session.act(0, { kind: "check" });
-      session.act(1, { kind: "check" });
-      session.advanceStreet();
+      const first = session.view(0).actorsSeat!;
+      const second = first === 0 ? 1 : 0;
+      session.act(first, { kind: "check" });
+      session.act(second, { kind: "check" });
       expect(session.view(0).street).toBe(street);
     }
 
@@ -48,6 +52,31 @@ describe("REQ-TABLE-SESSION", () => {
     const awarded = result!.winners.reduce((n, w) => n + w.amount, 0);
     expect(awarded).toBe(200);
     expect(awarded).toBeGreaterThan(0);
+    expect(session.isHandActive()).toBe(false);
+  });
+
+  it("rejects act out of turn; check/bet progress the actor", () => {
+    const { session } = createTableApp();
+    session.sit({ seat: 0, githubLogin: "alice" });
+    session.sit({ seat: 1, githubLogin: "bob" });
+    session.startHand({ button: 0, seed: 3 });
+
+    expect(() => session.act(1, { kind: "check" })).toThrow(/not your turn/i);
+    expect(session.legal(1)).toEqual([]);
+    expect(session.legal(0).map((a) => a.kind)).toEqual(
+      expect.arrayContaining(["call", "fold"]),
+    );
+
+    session.act(0, { kind: "call" });
+    const before = session.view(1).pot;
+    session.act(1, { kind: "check" });
+    expect(session.view(1).street).toBe("flop");
+
+    expect(session.view(1).actorsSeat).toBe(1);
+    session.act(1, { kind: "bet", amount: 100 });
+    expect(session.view(1).pot).toBe(before + 100);
+    expect(session.view(0).toCall).toBe(100);
+    expect(session.view(0).actorsSeat).toBe(0);
   });
 });
 

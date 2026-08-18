@@ -37,13 +37,14 @@ describe("REQ-AGENT-PLAY", () => {
     expect(api.legalActions(alice).some((a) => a.kind === "call")).toBe(true);
     api.act(alice, { kind: "call" });
     api.act(bob, { kind: "check" });
-    api.advanceStreet(alice);
     expect(api.handState(alice).street).toBe("flop");
 
     for (const street of ["turn", "river", "showdown"] as const) {
-      api.act(alice, { kind: "check" });
-      api.act(bob, { kind: "check" });
-      api.advanceStreet(bob);
+      const first = api.handState(alice).actorsSeat!;
+      const second = first === 0 ? bob : alice;
+      const firstId = first === 0 ? alice : bob;
+      api.act(firstId, { kind: "check" });
+      api.act(second, { kind: "check" });
       expect(api.handState(alice).street).toBe(street);
     }
 

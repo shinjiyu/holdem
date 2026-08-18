@@ -179,7 +179,13 @@
       padding: 1px 5px;
       border-radius: 8px;
     }
-    .felt-seat.you .tag { background: #f9a825; color: #212121; }
+    .felt-seat.actor .bubble {
+      border-color: #4fc3f7;
+      box-shadow: 0 0 0 2px rgba(79, 195, 247, 0.4), 0 4px 12px rgba(0,0,0,.35);
+    }
+    .felt-seat.actor .tag { background: #0288d1; color: #fff; }
+    #turnHint { text-align: center; margin: 0.35rem 0 0.6rem; font-size: 0.95rem; color: #ffe082; min-height: 1.2em; }
+
 
     .actions-bar {
       display: flex;
@@ -238,6 +244,7 @@
       </div>
       <!-- seats injected -->
     </div>
+    <div id="turnHint"></div>
     <div class="actions-bar" id="actions"></div>
     <div id="result"></div>
   </section>
@@ -409,11 +416,31 @@
     }
   }
 
+  function actionLabel(a) {
+    const map = {
+      fold: '弃牌',
+      check: '过牌',
+      call: '跟注',
+      bet: '下注',
+      raise: '加注',
+      allin: '全下',
+    };
+    const name = map[a.kind] || a.kind;
+    if (a.kind === 'bet' || a.kind === 'raise') {
+      return `${name} ${a.min ?? ''}`;
+    }
+    if (a.kind === 'call' && lastView?.view?.toCall) {
+      return `${name} ${lastView.view.toCall}`;
+    }
+    return name;
+  }
+
   function renderFelt(payload) {
     ensureFeltSeats();
     const v = payload.view;
     const mySeat = v?.seat;
     const seats = payload.seats || [];
+    const actor = v?.actorsSeat;
 
     $('streetLabel').textContent = v?.street || 'waiting';
     const board = $('board');
@@ -431,8 +458,15 @@
       if (!el) continue;
       const s = seats.find((x) => x.seat === i) || { seat: i, githubLogin: null, avatarUrl: null };
       const isYou = mySeat === i;
-      el.className = 'felt-seat' + (s.githubLogin ? ' filled' : ' empty') + (isYou ? ' you' : '');
-      const tag = isYou ? '<span class="tag">你</span>' : `<span class="tag">#${i}</span>`;
+      const isActor = actor === i;
+      el.className = 'felt-seat'
+        + (s.githubLogin ? ' filled' : ' empty')
+        + (isYou ? ' you' : '')
+        + (isActor ? ' actor' : '');
+      let tagText = `#${i}`;
+      if (isYou) tagText = '你';
+      else if (isActor) tagText = '行动';
+      const tag = `<span class="tag">${tagText}</span>`;
       if (s.githubLogin) {
         let holeHtml = '';
         if (isYou && v?.hole?.length) {
@@ -464,13 +498,34 @@
     $('status').textContent = `@${v.you.githubLogin} · ${v.you.control} · seat ${v.seat}`;
     renderFelt(payload);
 
+    const handActive = payload.handActive ?? (v.actorsSeat != null);
+    const myTurn = handActive && v.actorsSeat === v.seat && v.you.control === 'manual';
+    const hint = $('turnHint');
+    if (!handActive) {
+      hint.textContent = payload.result
+        ? '本手结束，可再开一手'
+        : '人齐后点「开一手」';
+    } else if (myTurn) {
+      hint.textContent = '轮到你行动';
+    } else if (v.actorsSeat != null) {
+      const who = (payload.seats || []).find((s) => s.seat === v.actorsSeat);
+      hint.textContent = who?.githubLogin
+        ? `等待 @${who.githubLogin} 行动…`
+        : `等待座位 #${v.actorsSeat}…`;
+    } else {
+      hint.textContent = '';
+    }
+
     const box = $('actions');
     box.innerHTML = '';
-    const start = document.createElement('button');
-    start.className = 'primary';
-    start.textContent = '开一手';
-    start.onclick = () => api('/api/start', { method: 'POST', body: '{}' }).then(refreshTable).catch((e) => showErr(e.message));
-    box.appendChild(start);
+
+    if (!handActive) {
+      const start = document.createElement('button');
+      start.className = 'primary';
+      start.textContent = '开一手';
+      start.onclick = () => api('/api/start', { method: 'POST', body: '{}' }).then(refreshTable).catch((e) => showErr(e.message));
+      box.appendChild(start);
+    }
 
     if (v.you.control === 'hosted') {
       const back = document.createElement('button');
@@ -483,21 +538,19 @@
       host.textContent = '托管给 AI';
       host.onclick = () => api('/api/control', { method: 'POST', body: JSON.stringify({ control: 'hosted' }) }).then(refreshTable).catch((e) => showErr(e.message));
       box.appendChild(host);
-      for (const a of (payload.legal || v.legal || [])) {
-        const b = document.createElement('button');
-        b.className = 'act';
-        b.textContent = a.kind + (a.min != null ? ` (${a.min})` : '');
-        b.onclick = () => api('/api/act', {
-          method: 'POST',
-          body: JSON.stringify({ intent: { kind: a.kind, amount: a.min } }),
-        }).then(refreshTable).catch((e) => showErr(e.message));
-        box.appendChild(b);
+      if (myTurn) {
+        for (const a of (payload.legal || v.legal || [])) {
+          const b = document.createElement('button');
+          b.className = 'act';
+          b.textContent = actionLabel(a);
+          b.onclick = () => api('/api/act', {
+            method: 'POST',
+            body: JSON.stringify({ intent: { kind: a.kind, amount: a.min } }),
+          }).then(refreshTable).catch((e) => showErr(e.message));
+          box.appendChild(b);
+        }
       }
     }
-    const next = document.createElement('button');
-    next.textContent = '下一街';
-    next.onclick = () => api('/api/advance', { method: 'POST', body: '{}' }).then(refreshTable).catch((e) => showErr(e.message));
-    box.appendChild(next);
 
     $('result').textContent = payload.result ? ('结算: ' + JSON.stringify(payload.result)) : '';
   }

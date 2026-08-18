@@ -34,6 +34,11 @@ export class TableSession {
   private seated: number[] = [];
   private button = 0;
   private resultCache: HandResult | null = null;
+  private handActive = false;
+  private actorsSeat: number | null = null;
+  private folded = new Set<number>();
+  /** Seats that have acted since the last bet/raise (or since street open). */
+  private acted = new Set<number>();
 
   constructor(config: TableConfig = DEFAULT_TABLE_CONFIG) {
     this.config = config;
@@ -45,6 +50,10 @@ export class TableSession {
 
   plugins() {
     return [this.dealer, this.deck, this.betting, this.evaluate, this.bank, this.seat];
+  }
+
+  isHandActive(): boolean {
+    return this.handActive;
   }
 
   sit(req: SitAtTableRequest): void {
@@ -60,10 +69,13 @@ export class TableSession {
 
   startHand(req: StartTableHandRequest): void {
     if (this.seated.length < 2) throw new Error("need at least two seated players");
+    if (this.handActive) throw new Error("hand already in progress");
     this.tableId = req.tableId ?? this.tableId;
     this.button = req.button;
     this.resultCache = null;
-    const ordered = [...this.seated].sort((a, b) => a - b);
+    this.folded.clear();
+    this.acted.clear();
+    const ordered = this.seatOrder();
     const bi = Math.max(0, ordered.indexOf(req.button));
     const sbSeat = ordered[bi] ?? ordered[0]!;
     const bbSeat = ordered[(bi + 1) % ordered.length]!;
@@ -88,30 +100,72 @@ export class TableSession {
       },
       pot: this.config.smallBlind + this.config.bigBlind,
     });
+    this.handActive = true;
+    this.actorsSeat = this.firstActorPreflop(sbSeat, bbSeat);
+    this.acted.clear();
   }
 
   legal(seat: number) {
+    if (!this.handActive || this.actorsSeat !== seat) return [];
     return this.betting.legal(seat);
   }
 
   act(seat: number, intent: ActionIntent): void {
+    if (!this.handActive) throw new Error("no hand in progress");
+    if (this.actorsSeat !== seat) {
+      throw new Error(`not your turn (waiting seat ${this.actorsSeat})`);
+    }
     const cost = this.costOf(seat, intent);
     this.betting.apply(seat, intent);
     this.remaining.set(seat, (this.remaining.get(seat) ?? 0) - cost);
+    this.syncBankSeat(seat);
+
+    if (intent.kind === "fold") {
+      this.folded.add(seat);
+    }
+
+    const aggressive = intent.kind === "bet" || intent.kind === "raise";
+    if (aggressive) {
+      this.acted.clear();
+      this.acted.add(seat);
+    } else {
+      this.acted.add(seat);
+    }
+
+    if (this.liveSeats().length <= 1) {
+      this.endByFold();
+      return;
+    }
+
+    if (this.streetBettingComplete()) {
+      this.actorsSeat = null;
+      this.advanceStreet();
+      return;
+    }
+
+    this.actorsSeat = this.nextActor(seat);
   }
 
   /** Close the current betting street and deal the next board (or showdown). */
   advanceStreet(): void {
+    if (!this.handActive) throw new Error("no hand in progress");
+    if (this.actorsSeat != null && !this.streetBettingComplete()) {
+      throw new Error("betting round not finished");
+    }
     this.dealer.closeBetting();
     this.dealer.advance();
     if (this.dealer.street === "showdown") {
       this.resultCache = this.settleShowdown();
+      this.handActive = false;
+      this.actorsSeat = null;
       return;
     }
     this.betting.startStreet({
       stacks: this.stackSnapshot(),
       pot: this.betting.pot,
     });
+    this.acted.clear();
+    this.actorsSeat = this.firstActorPostflop();
   }
 
   result(): HandResult | null {
@@ -121,6 +175,7 @@ export class TableSession {
   view(seat: number): SeatView {
     const base = this.seat.view({ seat });
     const hole = this.dealer.hole(seat) ?? [];
+    const legal = this.legal(seat);
     return {
       ...base,
       tableId: this.tableId,
@@ -130,12 +185,103 @@ export class TableSession {
       pot: this.betting.pot,
       toCall: this.betting.toCall(seat),
       stack: this.remaining.get(seat) ?? this.bank.stack(seat),
-      legal: this.betting.legal(seat),
+      actorsSeat: this.actorsSeat,
+      legal,
     };
+  }
+
+  private seatOrder(): number[] {
+    return [...this.seated].sort((a, b) => a - b);
+  }
+
+  private liveSeats(): number[] {
+    return this.seatOrder().filter((s) => !this.folded.has(s));
+  }
+
+  private firstActorPreflop(sbSeat: number, bbSeat: number): number {
+    const live = this.liveSeats();
+    if (live.length === 2) return sbSeat;
+    const i = live.indexOf(bbSeat);
+    return live[(i + 1) % live.length]!;
+  }
+
+  private firstActorPostflop(): number {
+    const live = this.liveSeats();
+    const order = this.seatOrder();
+    const bi = order.indexOf(this.button);
+    for (let step = 1; step <= order.length; step++) {
+      const seat = order[(bi + step) % order.length]!;
+      if (live.includes(seat)) return seat;
+    }
+    return live[0]!;
+  }
+
+  private nextActor(after: number): number {
+    const live = this.liveSeats();
+    const order = this.seatOrder();
+    const start = order.indexOf(after);
+    for (let step = 1; step <= order.length; step++) {
+      const seat = order[(start + step) % order.length]!;
+      if (!live.includes(seat)) continue;
+      const stack = this.remaining.get(seat) ?? 0;
+      if (stack <= 0) continue; // all-in: no more action
+      if (this.betting.toCall(seat) > 0) return seat;
+      if (!this.acted.has(seat)) return seat;
+    }
+    // Should have been caught by streetBettingComplete
+    return live.find((s) => s !== after) ?? after;
+  }
+
+  private streetBettingComplete(): boolean {
+    const live = this.liveSeats();
+    if (live.length <= 1) return true;
+    for (const s of live) {
+      const stack = this.remaining.get(s) ?? 0;
+      if (stack <= 0) continue; // all-in matched as far as they can
+      if (this.betting.toCall(s) > 0) return false;
+      if (!this.acted.has(s)) return false;
+    }
+    return true;
+  }
+
+  private endByFold(): void {
+    const live = this.liveSeats();
+    const winner = live[0];
+    if (winner == null) {
+      this.handActive = false;
+      this.actorsSeat = null;
+      return;
+    }
+    const pot = this.betting.pot;
+    this.remaining.set(winner, (this.remaining.get(winner) ?? 0) + pot);
+    this.syncBankFromRemaining();
+    this.resultCache = {
+      tableId: this.tableId,
+      winners: [{ seat: winner, amount: pot }],
+      board: this.dealer.board,
+      shown: [],
+    };
+    this.handActive = false;
+    this.actorsSeat = null;
   }
 
   private stackSnapshot(): Record<number, number> {
     return Object.fromEntries(this.seated.map((s) => [s, this.remaining.get(s) ?? 0]));
+  }
+
+  private syncBankSeat(seat: number): void {
+    const login = this.seat.view({ seat }).you.githubLogin;
+    this.bank.sit({
+      seat,
+      githubLogin: login,
+      stack: this.remaining.get(seat) ?? 0,
+    });
+  }
+
+  private syncBankFromRemaining(): void {
+    for (const seat of this.seated) {
+      this.syncBankSeat(seat);
+    }
   }
 
   private costOf(seat: number, intent: ActionIntent): number {
@@ -154,7 +300,7 @@ export class TableSession {
   }
 
   private settleShowdown(): HandResult {
-    const live = this.seated.filter((s) => this.dealer.hole(s));
+    const live = this.liveSeats().filter((s) => this.dealer.hole(s));
     const ranked = live.map((seat) => ({
       seat,
       rank: this.evaluate.rank({
@@ -182,7 +328,10 @@ export class TableSession {
       seat,
       amount: share + (i === 0 ? extra : 0),
     }));
-    this.bank.settle({ winners: settled });
+    for (const w of settled) {
+      this.remaining.set(w.seat, (this.remaining.get(w.seat) ?? 0) + w.amount);
+    }
+    this.syncBankFromRemaining();
     return {
       tableId: this.tableId,
       winners: settled,

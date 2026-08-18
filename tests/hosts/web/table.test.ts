@@ -39,13 +39,13 @@ describe("REQ-WEB-TABLE", () => {
 
     host.clickAct({ seat: 0, intent: { kind: "call" } });
     host.clickAct({ seat: 1, intent: { kind: "check" } });
-    host.advanceStreet();
     expect(host.view(0).street).toBe("flop");
 
     for (const street of ["turn", "river", "showdown"] as const) {
-      host.clickAct({ seat: 0, intent: { kind: "check" } });
-      host.clickAct({ seat: 1, intent: { kind: "check" } });
-      host.advanceStreet();
+      const first = host.view(0).actorsSeat!;
+      const second = first === 0 ? 1 : 0;
+      host.clickAct({ seat: first, intent: { kind: "check" } });
+      host.clickAct({ seat: second, intent: { kind: "check" } });
       expect(host.view(0).street).toBe(street);
     }
 

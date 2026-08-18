@@ -529,6 +529,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, path: string
       });
       send(res, 200, {
         ok: true,
+        handActive: ctx.room.session.isHandActive(),
         view: ctx.room.host.view(ctx.seat),
         legal: ctx.room.host.legal(ctx.seat),
       });
@@ -544,6 +545,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, path: string
     send(res, 200, {
       tableId: ctx.room.id,
       seats: seatOccupants(ctx.room),
+      handActive: ctx.room.session.isHandActive(),
       view: ctx.room.host.view(ctx.seat),
       result: ctx.room.host.result(),
       legal: ctx.room.host.legal(ctx.seat),
@@ -558,6 +560,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, path: string
     try {
       const view = ctx.room.host.clickAct({ seat: ctx.seat, intent: body.intent });
       send(res, 200, {
+        handActive: ctx.room.session.isHandActive(),
         view,
         legal: ctx.room.host.legal(ctx.seat),
         result: ctx.room.host.result(),
@@ -575,6 +578,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse, path: string
     try {
       ctx.room.host.advanceStreet();
       send(res, 200, {
+        handActive: ctx.room.session.isHandActive(),
         view: ctx.room.host.view(ctx.seat),
         result: ctx.room.host.result(),
         legal: ctx.room.host.legal(ctx.seat),
