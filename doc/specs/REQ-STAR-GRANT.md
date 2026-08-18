@@ -2,8 +2,8 @@
 id: REQ-STAR-GRANT
 module: auth
 role: integrator
-status: ready
-agent: unassigned
+status: impl-green
+agent: lead
 owns_paths:
   - src/auth/star-grant.ts
   - tests/auth/star-grant.test.ts
@@ -25,7 +25,7 @@ last_updated: 2026-08-18
 - component: auth
 - role: integrator
 - test_kind: unit
-- status: ready
+- status: impl-green
 - serialize: true
 
 ## 目标
@@ -34,11 +34,11 @@ last_updated: 2026-08-18
 路径刻意写成单文件，避免和进行中的 AUTH（整个 `src/auth/**`）并行。
 
 ## 验收
-- [ ] mock 未星：不发
-- [ ] mock 已星首次：+config.starGrantChips
-- [ ] 再领失败
-- [ ] 取消星不扣回（不实现 webhook）
-- [ ] `py scripts/adl_check.py` exit 0
+- [x] mock 未星：不发
+- [x] mock 已星首次：+config.starGrantChips
+- [x] 再领失败
+- [x] 取消星不扣回（不实现 webhook）
+- [x] `py scripts/adl_check.py` exit 0
 
 ## 冲突预检 conflict_check
 - [x] 未标 ready；AUTH/WEB 完成后再开，避免抢 auth 目录与 web 按钮

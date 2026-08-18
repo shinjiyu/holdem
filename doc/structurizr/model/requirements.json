@@ -138,8 +138,8 @@
       "component": "auth",
       "slice": "embed",
       "ui": false,
-      "test_kind": "manual",
-      "tests": [],
+      "test_kind": "unit",
+      "tests": ["tests/auth/star-grant.test.ts", "tests/hosts/web/star-claim.test.ts"],
       "acceptance": "Claim button: GET /user/starred/{owner}/{repo} with the user's token. 204 + never claimed → BankPort.grant once via compose. 404 or already claimed → no credit. bank/plugins do not import GitHub. Amount in config. No unstar clawback in MVP. See doc/design/STAR-GRANT.md"
     }
   ]
