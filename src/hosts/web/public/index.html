@@ -88,13 +88,13 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 38px;
+      width: 42px;
       height: 52px;
       border-radius: 5px;
       background: #fafafa;
       color: #111;
       font-weight: 700;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       box-shadow: 0 2px 4px rgba(0,0,0,.35);
       font-variant-numeric: tabular-nums;
     }
@@ -284,6 +284,10 @@
     return data;
   }
 
+  function rankGlyph(rank) {
+    return rank === 'T' ? '10' : (rank || '?');
+  }
+
   function suitGlyph(suit) {
     const map = { c: '♣', d: '♦', h: '♥', s: '♠', '♣': '♣', '♦': '♦', '♥': '♥', '♠': '♠' };
     return map[suit] || suit || '';
@@ -297,7 +301,7 @@
   function cardEl(c) {
     const el = document.createElement('span');
     el.className = 'pcard' + (suitRed(c.suit) ? ' red' : '');
-    el.textContent = (c.rank || '?') + suitGlyph(c.suit);
+    el.textContent = rankGlyph(c.rank) + suitGlyph(c.suit);
     return el;
   }
 
