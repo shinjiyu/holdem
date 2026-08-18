@@ -51,6 +51,6 @@ describe("REQ-AUTH-GITHUB oauth", () => {
       clientId: "test-id",
       profileFetcher: mockFetcher({ x: "alice" }),
     });
-    await expect(auth.completeOAuth("x")).resolves.toEqual({ githubLogin: "alice" });
+    await expect(auth.completeOAuth("x")).resolves.toMatchObject({ githubLogin: "alice" });
   });
 });

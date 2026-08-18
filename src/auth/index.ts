@@ -31,6 +31,9 @@ export function authId(): "auth" {
 
 export interface GitHubProfile {
   login: string;
+  /** Present when fetched via real OAuth code exchange. */
+  accessToken?: string;
+  avatarUrl?: string;
 }
 
 /** Injected in tests so OAuth never needs network or a real client secret. */
@@ -89,11 +92,18 @@ export function createGithubProfileFetcher(oauth: {
       if (!userRes.ok) {
         throw new Error(`github profile fetch failed: ${userRes.status}`);
       }
-      const user = (await userRes.json()) as { login?: string };
+      const user = (await userRes.json()) as {
+        login?: string;
+        avatar_url?: string;
+      };
       if (!user.login) {
         throw new Error("github profile missing login");
       }
-      return { login: user.login };
+      return {
+        login: user.login,
+        accessToken: tokenJson.access_token,
+        avatarUrl: user.avatar_url,
+      };
     },
   };
 }
@@ -179,10 +189,18 @@ export class Auth {
     return url.toString();
   }
 
-  async completeOAuth(code: string): Promise<{ githubLogin: string }> {
+  async completeOAuth(code: string): Promise<{
+    githubLogin: string;
+    accessToken?: string;
+    avatarUrl?: string;
+  }> {
     const fetcher = this.profileFetcher ?? this.defaultFetcher();
     const profile = await fetcher.fetchByCode(code);
-    return { githubLogin: profile.login };
+    return {
+      githubLogin: profile.login,
+      accessToken: profile.accessToken,
+      avatarUrl: profile.avatarUrl,
+    };
   }
 
   issueTableToken(input: IssueTableTokenInput): IssuedTableToken {

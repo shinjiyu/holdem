@@ -1,4 +1,4 @@
-/** Minimal HTTP host for kuroneko.chat/holdem/ — OAuth + table API + static H5. */
+/** HTTP host: lobby + tables + star-claim + OAuth for kuroneko.chat/holdem/ */
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFileSync, existsSync } from "node:fs";
@@ -6,14 +6,18 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { Auth } from "../../auth";
+import { createGithubStarFetcher, StarGrantLedger } from "../../auth/star-grant";
 import { TableSession } from "../../app/table-session";
 import { WebTableHost } from "./web-table";
+import { StarClaimHost } from "./star-claim";
+import { BankPlugin } from "../../bank";
+import { DEFAULT_TABLE_CONFIG } from "../../config";
 import type { ActionIntent } from "../../contracts/shared/dto";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, "public");
+const MAX_SEATS = DEFAULT_TABLE_CONFIG.maxSeats;
 
-/** Load /opt/holdem/.env when started under pm2 without a shell wrapper. */
 function loadDotEnv(): void {
   for (const candidate of [join(process.cwd(), ".env"), join(__dirname, "../../../.env")]) {
     if (!existsSync(candidate)) continue;
@@ -41,10 +45,7 @@ function env(name: string, fallback = ""): string {
 
 const PORT = Number(env("HOLDEM_PORT", "3010"));
 const PUBLIC_BASE = env("HOLDEM_PUBLIC_BASE", "http://127.0.0.1:3010").replace(/\/$/, "");
-const REDIRECT_URI = env(
-  "HOLDEM_REDIRECT_URI",
-  `${PUBLIC_BASE}/oauth/callback`,
-);
+const REDIRECT_URI = env("HOLDEM_REDIRECT_URI", `${PUBLIC_BASE}/oauth/callback`);
 const COOKIE_NAME = "holdem_session";
 const COOKIE_SECRET = env("TABLE_TOKEN_SECRET", "dev-only-change-me");
 
@@ -57,24 +58,111 @@ const auth = new Auth({
 
 interface PlayerCookie {
   githubLogin: string;
+  accessToken?: string;
+  avatarUrl?: string;
+}
+
+interface SeatInfo {
+  seat: number;
+  githubLogin: string | null;
+  avatarUrl: string | null;
 }
 
 interface TableRoom {
   id: string;
+  name: string;
   session: TableSession;
   host: WebTableHost;
+  /** login -> avatar for seated players */
+  avatars: Map<string, string>;
 }
+
+/** Lobby wallet (chips) — separate from in-hand table bank until sit copies stack. */
+const lobbyBank = new BankPlugin();
+const starLedger = new StarGrantLedger();
+const starClaim = new StarClaimHost(
+  lobbyBank,
+  createGithubStarFetcher(DEFAULT_TABLE_CONFIG.starGrantRepo),
+  { ledger: starLedger, amount: DEFAULT_TABLE_CONFIG.starGrantChips },
+);
+let lobbySeatSeq = 0;
+const lobbyIndex = new Map<string, number>();
+const playerMeta = new Map<string, { avatarUrl: string; accessToken?: string }>();
 
 const rooms = new Map<string, TableRoom>();
 
-function getRoom(tableId = "main"): TableRoom {
-  let room = rooms.get(tableId);
-  if (!room) {
-    const session = new TableSession();
-    room = { id: tableId, session, host: new WebTableHost(session, auth) };
-    rooms.set(tableId, room);
-  }
+function avatarFor(login: string, explicit?: string): string {
+  return explicit || `https://github.com/${login}.png?size=80`;
+}
+
+function ensureLobbyWallet(githubLogin: string): number {
+  const hit = lobbyIndex.get(githubLogin);
+  if (hit != null) return hit;
+  const seat = lobbySeatSeq++;
+  lobbyBank.sit({
+    seat,
+    githubLogin,
+    stack: DEFAULT_TABLE_CONFIG.startingStack,
+  });
+  lobbyIndex.set(githubLogin, seat);
+  return seat;
+}
+
+function createRoom(name?: string): TableRoom {
+  const id = randomBytes(3).toString("hex");
+  const session = new TableSession();
+  const room: TableRoom = {
+    id,
+    name: name?.trim() || `桌 ${id}`,
+    session,
+    host: new WebTableHost(session, auth),
+    avatars: new Map(),
+  };
+  rooms.set(id, room);
   return room;
+}
+
+function getRoom(tableId: string): TableRoom | null {
+  return rooms.get(tableId) ?? null;
+}
+
+function seatOccupants(room: TableRoom): SeatInfo[] {
+  const out: SeatInfo[] = [];
+  for (let seat = 0; seat < MAX_SEATS; seat++) {
+    try {
+      const occ = room.session.seat.view({ seat });
+      out.push({
+        seat,
+        githubLogin: occ.you.githubLogin,
+        avatarUrl: room.avatars.get(occ.you.githubLogin) ?? avatarFor(occ.you.githubLogin),
+      });
+    } catch {
+      out.push({ seat, githubLogin: null, avatarUrl: null });
+    }
+  }
+  return out;
+}
+
+function findSeat(room: TableRoom, githubLogin: string): number | null {
+  for (const s of seatOccupants(room)) {
+    if (s.githubLogin === githubLogin) return s.seat;
+  }
+  return null;
+}
+
+function firstFreeSeat(room: TableRoom): number | null {
+  for (const s of seatOccupants(room)) {
+    if (!s.githubLogin) return s.seat;
+  }
+  return null;
+}
+
+function playerTable(githubLogin: string): { tableId: string; seat: number } | null {
+  for (const room of rooms.values()) {
+    const seat = findSeat(room, githubLogin);
+    if (seat != null) return { tableId: room.id, seat };
+  }
+  return null;
 }
 
 function signCookie(payload: PlayerCookie): string {
@@ -128,7 +216,7 @@ function send(res: ServerResponse, status: number, body: unknown, type = "applic
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on("data", (c) => chunks.push(c));
+    req.on("data", (c) => chunks.push(Buffer.from(c)));
     req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
     req.on("error", reject);
   });
@@ -140,29 +228,6 @@ async function readJson<T>(req: IncomingMessage): Promise<T> {
   return JSON.parse(raw) as T;
 }
 
-function findSeat(room: TableRoom, githubLogin: string): number | null {
-  for (let seat = 0; seat < 6; seat++) {
-    try {
-      const occ = room.session.seat.view({ seat });
-      if (occ.you.githubLogin === githubLogin) return seat;
-    } catch {
-      /* empty seat */
-    }
-  }
-  return null;
-}
-
-function firstFreeSeat(room: TableRoom): number | null {
-  for (let seat = 0; seat < 2; seat++) {
-    try {
-      room.session.seat.view({ seat });
-    } catch {
-      return seat;
-    }
-  }
-  return null;
-}
-
 function requirePlayer(req: IncomingMessage, res: ServerResponse): PlayerCookie | null {
   const player = readCookie(req);
   if (!player) {
@@ -172,56 +237,206 @@ function requirePlayer(req: IncomingMessage, res: ServerResponse): PlayerCookie 
   return player;
 }
 
-async function handleApi(
-  req: IncomingMessage,
-  res: ServerResponse,
-  path: string,
-): Promise<void> {
-  const room = getRoom("main");
+function lobbySnapshot() {
+  return [...rooms.values()].map((room) => {
+    const seats = seatOccupants(room);
+    return {
+      id: room.id,
+      name: room.name,
+      maxSeats: MAX_SEATS,
+      occupied: seats.filter((s) => s.githubLogin).length,
+      seats,
+      street: (() => {
+        try {
+          return room.session.dealer.street;
+        } catch {
+          return "idle";
+        }
+      })(),
+    };
+  });
+}
+
+async function handleApi(req: IncomingMessage, res: ServerResponse, path: string): Promise<void> {
   const method = req.method ?? "GET";
 
   if (method === "GET" && path === "/api/me") {
     const player = readCookie(req);
     if (!player) {
-      send(res, 200, { loggedIn: false, loginUrl: `/holdem/login` });
+      send(res, 200, { loggedIn: false, loginUrl: `${PUBLIC_BASE}/login` });
       return;
     }
-    const seat = findSeat(room, player.githubLogin);
+    ensureLobbyWallet(player.githubLogin);
+    const meta = playerMeta.get(player.githubLogin);
+    const at = playerTable(player.githubLogin);
     send(res, 200, {
       loggedIn: true,
       githubLogin: player.githubLogin,
-      seat,
-      tableId: room.id,
+      avatarUrl: meta?.avatarUrl ?? player.avatarUrl ?? avatarFor(player.githubLogin),
+      chips: lobbyBank.stack(lobbyIndex.get(player.githubLogin)!),
+      starGrantChips: DEFAULT_TABLE_CONFIG.starGrantChips,
+      starGrantRepo: DEFAULT_TABLE_CONFIG.starGrantRepo,
+      starClaimed: starLedger.hasClaimed(player.githubLogin),
+      tableId: at?.tableId ?? null,
+      seat: at?.seat ?? null,
     });
     return;
   }
 
-  if (method === "POST" && path === "/api/sit") {
-    const player = requirePlayer(req, res);
-    if (!player) return;
-    const existing = findSeat(room, player.githubLogin);
-    if (existing != null) {
-      send(res, 200, { seat: existing, view: room.host.view(existing) });
-      return;
-    }
-    const seat = firstFreeSeat(room);
-    if (seat == null) {
-      send(res, 409, { error: "table full (2 seats for MVP)" });
-      return;
-    }
-    room.host.sit(seat, player.githubLogin);
-    send(res, 200, { seat, view: room.host.view(seat) });
+  if (method === "GET" && path === "/api/lobby") {
+    send(res, 200, { tables: lobbySnapshot() });
     return;
   }
 
-  if (method === "POST" && path === "/api/start") {
+  if (method === "POST" && path === "/api/tables") {
     const player = requirePlayer(req, res);
     if (!player) return;
+    if (playerTable(player.githubLogin)) {
+      send(res, 409, { error: "already seated; leave first" });
+      return;
+    }
+    const body = await readJson<{ name?: string }>(req);
+    const room = createRoom(body.name);
+    send(res, 200, { table: lobbySnapshot().find((t) => t.id === room.id) });
+    return;
+  }
+
+  if (method === "POST" && path.startsWith("/api/tables/") && path.endsWith("/join")) {
+    const player = requirePlayer(req, res);
+    if (!player) return;
+    const tableId = path.slice("/api/tables/".length, -"/join".length);
+    const room = getRoom(tableId);
+    if (!room) {
+      send(res, 404, { error: "table not found" });
+      return;
+    }
+    const existing = playerTable(player.githubLogin);
+    if (existing && existing.tableId !== tableId) {
+      send(res, 409, { error: "already at another table" });
+      return;
+    }
+    if (existing?.tableId === tableId) {
+      send(res, 200, { tableId, seat: existing.seat, seats: seatOccupants(room) });
+      return;
+    }
+    const body = await readJson<{ seat?: number }>(req);
+    let seat = body.seat;
+    if (seat == null) seat = firstFreeSeat(room) ?? undefined;
+    if (seat == null || seat < 0 || seat >= MAX_SEATS) {
+      send(res, 409, { error: "table full" });
+      return;
+    }
+    if (findSeat(room, player.githubLogin) == null) {
+      try {
+        room.session.seat.view({ seat });
+        send(res, 409, { error: `seat ${seat} taken` });
+        return;
+      } catch {
+        /* empty */
+      }
+    }
+    ensureLobbyWallet(player.githubLogin);
+    const chips = lobbyBank.stack(lobbyIndex.get(player.githubLogin)!);
+    room.host.sit(seat, player.githubLogin, chips);
+    const av = playerMeta.get(player.githubLogin)?.avatarUrl ?? player.avatarUrl ?? avatarFor(player.githubLogin);
+    room.avatars.set(player.githubLogin, av);
+    send(res, 200, { tableId, seat, seats: seatOccupants(room) });
+    return;
+  }
+
+  if (method === "POST" && path.startsWith("/api/tables/") && path.endsWith("/leave")) {
+    const player = requirePlayer(req, res);
+    if (!player) return;
+    const tableId = path.slice("/api/tables/".length, -"/leave".length);
+    const room = getRoom(tableId);
+    if (!room) {
+      send(res, 404, { error: "table not found" });
+      return;
+    }
+    const seat = findSeat(room, player.githubLogin);
+    if (seat == null) {
+      send(res, 200, { ok: true });
+      return;
+    }
+    // Persist chips back to lobby (best-effort: bank stack on table)
+    ensureLobbyWallet(player.githubLogin);
+    const chips = room.session.bank.stack(seat);
+    const lobbySeat = lobbyIndex.get(player.githubLogin)!;
+    lobbyBank.sit({ seat: lobbySeat, githubLogin: player.githubLogin, stack: chips });
+    // Recreate session without this seat — simplest: rebuild occupants
+    const keep = seatOccupants(room).filter((s) => s.githubLogin && s.githubLogin !== player.githubLogin);
+    const session = new TableSession();
+    const host = new WebTableHost(session, auth);
+    const avatars = new Map<string, string>();
+    for (const s of keep) {
+      const login = s.githubLogin!;
+      const stack = room.session.bank.stack(s.seat);
+      host.sit(s.seat, login, stack);
+      avatars.set(login, room.avatars.get(login) ?? avatarFor(login));
+    }
+    room.session = session;
+    room.host = host;
+    room.avatars = avatars;
+    if (keep.length === 0) rooms.delete(tableId);
+    send(res, 200, { ok: true, chips: lobbyBank.stack(lobbySeat) });
+    return;
+  }
+
+  if (method === "POST" && path === "/api/star-claim") {
+    const player = requirePlayer(req, res);
+    if (!player) return;
+    const token = player.accessToken || playerMeta.get(player.githubLogin)?.accessToken;
+    if (!token) {
+      send(res, 400, { error: "missing github access token; log out and login again" });
+      return;
+    }
+    ensureLobbyWallet(player.githubLogin);
+    try {
+      const result = await starClaim.claim(player.githubLogin, token);
+      send(res, 200, {
+        ...result,
+        chips: lobbyBank.stack(lobbyIndex.get(player.githubLogin)!),
+        starClaimed: true,
+      });
+    } catch (e) {
+      send(res, 400, { error: e instanceof Error ? e.message : String(e) });
+    }
+    return;
+  }
+
+  // ---- in-table APIs (require ?tableId= or body.tableId) ----
+  const needTable = async (): Promise<{ player: PlayerCookie; room: TableRoom; seat: number } | null> => {
+    const player = requirePlayer(req, res);
+    if (!player) return null;
+    const at = playerTable(player.githubLogin);
+    if (!at) {
+      send(res, 400, { error: "join a table from the lobby first" });
+      return null;
+    }
+    const room = getRoom(at.tableId);
+    if (!room) {
+      send(res, 404, { error: "table gone" });
+      return null;
+    }
+    return { player, room, seat: at.seat };
+  };
+
+  if (method === "POST" && path === "/api/start") {
+    const ctx = await needTable();
+    if (!ctx) return;
     const body = await readJson<{ seed?: number }>(req);
     try {
-      room.host.startHand({ button: 0, seed: body.seed ?? Date.now() % 1_000_000, tableId: room.id });
-      const seat = findSeat(room, player.githubLogin);
-      send(res, 200, { ok: true, view: seat != null ? room.host.view(seat) : null });
+      const button = seatOccupants(ctx.room).find((s) => s.githubLogin)?.seat ?? 0;
+      ctx.room.host.startHand({
+        button,
+        seed: body.seed ?? Date.now() % 1_000_000,
+        tableId: ctx.room.id,
+      });
+      send(res, 200, {
+        ok: true,
+        view: ctx.room.host.view(ctx.seat),
+        legal: ctx.room.host.legal(ctx.seat),
+      });
     } catch (e) {
       send(res, 400, { error: e instanceof Error ? e.message : String(e) });
     }
@@ -229,33 +444,30 @@ async function handleApi(
   }
 
   if (method === "GET" && path === "/api/view") {
-    const player = requirePlayer(req, res);
-    if (!player) return;
-    const seat = findSeat(room, player.githubLogin);
-    if (seat == null) {
-      send(res, 400, { error: "sit first" });
-      return;
-    }
+    const ctx = await needTable();
+    if (!ctx) return;
     send(res, 200, {
-      view: room.host.view(seat),
-      result: room.host.result(),
-      legal: room.host.legal(seat),
+      tableId: ctx.room.id,
+      seats: seatOccupants(ctx.room),
+      view: ctx.room.host.view(ctx.seat),
+      result: ctx.room.host.result(),
+      legal: ctx.room.host.legal(ctx.seat),
     });
     return;
   }
 
   if (method === "POST" && path === "/api/act") {
-    const player = requirePlayer(req, res);
-    if (!player) return;
-    const seat = findSeat(room, player.githubLogin);
-    if (seat == null) {
-      send(res, 400, { error: "sit first" });
-      return;
-    }
+    const ctx = await needTable();
+    if (!ctx) return;
     const body = await readJson<{ intent: ActionIntent }>(req);
     try {
-      const view = room.host.clickAct({ seat, intent: body.intent });
-      send(res, 200, { view, legal: room.host.legal(seat), result: room.host.result() });
+      const view = ctx.room.host.clickAct({ seat: ctx.seat, intent: body.intent });
+      send(res, 200, {
+        view,
+        legal: ctx.room.host.legal(ctx.seat),
+        result: ctx.room.host.result(),
+        seats: seatOccupants(ctx.room),
+      });
     } catch (e) {
       send(res, 400, { error: e instanceof Error ? e.message : String(e) });
     }
@@ -263,14 +475,15 @@ async function handleApi(
   }
 
   if (method === "POST" && path === "/api/advance") {
-    const player = requirePlayer(req, res);
-    if (!player) return;
+    const ctx = await needTable();
+    if (!ctx) return;
     try {
-      room.host.advanceStreet();
-      const seat = findSeat(room, player.githubLogin);
+      ctx.room.host.advanceStreet();
       send(res, 200, {
-        view: seat != null ? room.host.view(seat) : null,
-        result: room.host.result(),
+        view: ctx.room.host.view(ctx.seat),
+        result: ctx.room.host.result(),
+        legal: ctx.room.host.legal(ctx.seat),
+        seats: seatOccupants(ctx.room),
       });
     } catch (e) {
       send(res, 400, { error: e instanceof Error ? e.message : String(e) });
@@ -279,27 +492,14 @@ async function handleApi(
   }
 
   if (method === "POST" && path === "/api/control") {
-    const player = requirePlayer(req, res);
-    if (!player) return;
-    const seat = findSeat(room, player.githubLogin);
-    if (seat == null) {
-      send(res, 400, { error: "sit first" });
-      return;
-    }
+    const ctx = await needTable();
+    if (!ctx) return;
     const body = await readJson<{ control: "manual" | "hosted" }>(req);
     const view =
       body.control === "manual"
-        ? room.host.takeBack(seat)
-        : room.host.setControl({ seat, control: "hosted", host: "cursor" });
+        ? ctx.room.host.takeBack(ctx.seat)
+        : ctx.room.host.setControl({ seat: ctx.seat, control: "hosted", host: "cursor" });
     send(res, 200, { view });
-    return;
-  }
-
-  if (method === "POST" && path === "/api/reset") {
-    const player = requirePlayer(req, res);
-    if (!player) return;
-    rooms.delete("main");
-    send(res, 200, { ok: true });
     return;
   }
 
@@ -312,20 +512,18 @@ function serveStatic(res: ServerResponse, filePath: string): void {
     return;
   }
   const html = readFileSync(filePath);
-  const type = filePath.endsWith(".js")
-    ? "application/javascript"
-    : filePath.endsWith(".css")
-      ? "text/css"
-      : "text/html";
-  res.writeHead(200, { "Content-Type": `${type}; charset=utf-8` });
+  res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
   res.end(html);
 }
+
+// seed a couple empty tables so lobby isn't blank
+createRoom("新手桌 A");
+createRoom("新手桌 B");
 
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
     let path = url.pathname;
-    // Accept both /holdem/... (direct) and /... (nginx strip)
     if (path.startsWith("/holdem")) path = path.slice("/holdem".length) || "/";
 
     if (req.method === "GET" && (path === "/" || path === "/index.html")) {
@@ -338,8 +536,7 @@ const server = createServer(async (req, res) => {
         send(res, 500, "GITHUB_CLIENT_ID missing", "text/plain");
         return;
       }
-      const state = randomBytes(8).toString("hex");
-      const loc = auth.authorizationUrl(state);
+      const loc = auth.authorizationUrl(randomBytes(8).toString("hex"));
       res.writeHead(302, { Location: loc });
       res.end();
       return;
@@ -351,8 +548,18 @@ const server = createServer(async (req, res) => {
         send(res, 400, "missing code", "text/plain");
         return;
       }
-      const { githubLogin } = await auth.completeOAuth(code);
-      setSessionCookie(res, { githubLogin });
+      const result = await auth.completeOAuth(code);
+      const avatarUrl = result.avatarUrl ?? avatarFor(result.githubLogin);
+      playerMeta.set(result.githubLogin, {
+        avatarUrl,
+        accessToken: result.accessToken,
+      });
+      ensureLobbyWallet(result.githubLogin);
+      setSessionCookie(res, {
+        githubLogin: result.githubLogin,
+        accessToken: result.accessToken,
+        avatarUrl,
+      });
       res.writeHead(302, { Location: `${PUBLIC_BASE}/` });
       res.end();
       return;

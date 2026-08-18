@@ -33,8 +33,8 @@ export class WebTableHost {
     return this.auth.completeOAuth(code);
   }
 
-  sit(seat: number, githubLogin: string): void {
-    this.session.sit({ seat, githubLogin });
+  sit(seat: number, githubLogin: string, stack?: number): void {
+    this.session.sit({ seat, githubLogin, stack });
   }
 
   startHand(opts: { button: number; seed?: number; tableId?: string }): void {

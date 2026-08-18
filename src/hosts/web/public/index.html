@@ -3,39 +3,70 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>holdem @ kuroneko</title>
+  <title>holdem 大厅</title>
   <style>
     :root { color-scheme: dark; }
     body { font-family: system-ui, sans-serif; margin: 0; background: #0b1a12; color: #e8f5e9; }
-    main { max-width: 720px; margin: 0 auto; padding: 1rem; }
+    main { max-width: 960px; margin: 0 auto; padding: 1rem; }
     button { margin: 0.2rem; padding: 0.45rem 0.8rem; border-radius: 6px; border: 0; cursor: pointer; }
     button.primary { background: #2e7d32; color: #fff; }
     button.act { background: #1b5e20; color: #fff; }
     button.warn { background: #ef6c00; color: #fff; }
+    button.ghost { background: #24352a; color: #c8e6c9; }
     .card { background: #12261a; border: 1px solid #2e4a38; border-radius: 10px; padding: 0.75rem 1rem; margin: 0.75rem 0; }
     .muted { color: #9ccc9c; font-size: 0.9rem; }
     #error { color: #ff8a80; white-space: pre-wrap; }
+    .row { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+    .me-avatar, .seat img { width: 40px; height: 40px; border-radius: 50%; background: #1b3a28; object-fit: cover; }
+    .seat { width: 88px; text-align: center; border: 1px dashed #2e4a38; border-radius: 8px; padding: 0.4rem; cursor: pointer; }
+    .seat.filled { border-style: solid; background: #163222; cursor: default; }
+    .seat.empty:hover { border-color: #66bb6a; }
+    .seat .name { font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tables { display: grid; gap: 0.75rem; }
+    .table-card h3 { margin: 0 0 0.5rem; }
+    .seats { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .hidden { display: none !important; }
     .hosted .act { opacity: 0.35; pointer-events: none; }
   </style>
 </head>
 <body>
 <main>
-  <h1>holdem</h1>
-  <p class="muted">GitHub 登录必须在顶层窗口（不要塞进 iframe）。两人各登各的号，坐下后即可开一手。</p>
+  <h1>holdem 大厅</h1>
+  <p class="muted">先 GitHub 登录 → 大厅选桌入座（显示头像）→ 开打。加星领币在登录条。</p>
+
   <div id="auth" class="card">检查登录…</div>
-  <div id="table" class="card" hidden>
+
+  <section id="lobby" class="hidden">
+    <div class="card row">
+      <button class="primary" id="btnCreate">创建新桌</button>
+      <button class="ghost" id="btnRefresh">刷新大厅</button>
+      <span class="muted" id="lobbyHint"></span>
+    </div>
+    <div id="tables" class="tables"></div>
+  </section>
+
+  <section id="table" class="card hidden">
+    <div class="row">
+      <button class="ghost" id="btnBack">← 回大厅（离桌）</button>
+      <span id="tableTitle"></span>
+    </div>
+    <div id="seatBar" class="seats" style="margin:0.5rem 0"></div>
     <div id="status"></div>
     <div id="board"></div>
     <div id="hole"></div>
     <div id="pot"></div>
     <div id="actions"></div>
     <div id="result"></div>
-  </div>
+  </section>
+
   <pre id="error"></pre>
 </main>
 <script>
   const BASE = location.pathname.startsWith('/holdem') ? '/holdem' : '';
   const $ = (id) => document.getElementById(id);
+  let me = null;
+  let viewMode = 'lobby'; // lobby | table
+
   function showErr(e) { $('error').textContent = e || ''; }
 
   async function api(path, opts) {
@@ -51,42 +82,148 @@
 
   function card(c) { return (c.rank || '?') + (c.suit || ''); }
 
+  function renderAuth() {
+    const auth = $('auth');
+    if (!me || !me.loggedIn) {
+      auth.innerHTML = `<p>未登录</p><a href="${BASE}/login"><button class="primary">用 GitHub 登录</button></a>`;
+      return;
+    }
+    const claimed = me.starClaimed
+      ? '<span class="muted">已领过加星奖励</span>'
+      : `<button class="warn" id="btnStar">我已 star ${me.starGrantRepo}，领 ${me.starGrantChips} 币</button>`;
+    auth.innerHTML = `
+      <div class="row">
+        <img class="me-avatar" src="${me.avatarUrl}" alt="" />
+        <div>
+          <div><strong>@${me.githubLogin}</strong></div>
+          <div class="muted">筹码：${me.chips}</div>
+        </div>
+        ${claimed}
+        <a class="muted" href="https://github.com/${me.starGrantRepo}" target="_blank" rel="noopener">去加星 ↗</a>
+      </div>`;
+    const btn = $('btnStar');
+    if (btn) btn.onclick = () => claimStar().catch((e) => showErr(e.message));
+  }
+
+  async function claimStar() {
+    showErr('');
+    const r = await api('/api/star-claim', { method: 'POST', body: '{}' });
+    me.chips = r.chips;
+    me.starClaimed = true;
+    renderAuth();
+    alert(`到账 +${r.granted}`);
+  }
+
+  function renderLobby(tables) {
+    viewMode = 'lobby';
+    $('lobby').classList.remove('hidden');
+    $('table').classList.add('hidden');
+    $('lobbyHint').textContent = `共 ${tables.length} 桌 · 点空座位入座`;
+    const box = $('tables');
+    box.innerHTML = '';
+    for (const t of tables) {
+      const el = document.createElement('div');
+      el.className = 'card table-card';
+      el.innerHTML = `<h3>${t.name} <span class="muted">#${t.id} · ${t.occupied}/${t.maxSeats}</span></h3>`;
+      const seats = document.createElement('div');
+      seats.className = 'seats';
+      for (const s of t.seats) {
+        const seat = document.createElement('div');
+        seat.className = 'seat ' + (s.githubLogin ? 'filled' : 'empty');
+        if (s.githubLogin) {
+          seat.innerHTML = `<img src="${s.avatarUrl}" alt=""/><div class="name">@${s.githubLogin}</div><div class="muted">#${s.seat}</div>`;
+        } else {
+          seat.innerHTML = `<div style="height:40px;line-height:40px">空</div><div class="name">座位 ${s.seat}</div>`;
+          seat.onclick = () => joinTable(t.id, s.seat).catch((e) => showErr(e.message));
+        }
+        seats.appendChild(seat);
+      }
+      el.appendChild(seats);
+      box.appendChild(el);
+    }
+  }
+
+  async function refreshLobby() {
+    showErr('');
+    const data = await api('/api/lobby');
+    renderLobby(data.tables || []);
+  }
+
+  async function joinTable(tableId, seat) {
+    showErr('');
+    await api(`/api/tables/${tableId}/join`, {
+      method: 'POST',
+      body: JSON.stringify({ seat }),
+    });
+    me = await api('/api/me');
+    renderAuth();
+    await enterTable();
+  }
+
+  async function createTable() {
+    const name = prompt('桌子名称', '友谊桌');
+    if (name == null) return;
+    await api('/api/tables', { method: 'POST', body: JSON.stringify({ name }) });
+    await refreshLobby();
+  }
+
+  async function leaveTable() {
+    if (!me?.tableId) {
+      await refreshLobby();
+      return;
+    }
+    await api(`/api/tables/${me.tableId}/leave`, { method: 'POST', body: '{}' });
+    me = await api('/api/me');
+    renderAuth();
+    await refreshLobby();
+  }
+
+  function renderSeats(seats) {
+    const bar = $('seatBar');
+    bar.innerHTML = '';
+    for (const s of seats || []) {
+      const el = document.createElement('div');
+      el.className = 'seat ' + (s.githubLogin ? 'filled' : 'empty');
+      if (s.githubLogin) {
+        el.innerHTML = `<img src="${s.avatarUrl}" alt=""/><div class="name">@${s.githubLogin}</div>`;
+      } else {
+        el.innerHTML = `<div style="height:40px;line-height:40px">空</div><div class="name">#${s.seat}</div>`;
+      }
+      bar.appendChild(el);
+    }
+  }
+
   function renderView(payload) {
     const v = payload.view;
     if (!v) return;
     document.body.classList.toggle('hosted', v.you.control === 'hosted');
+    $('tableTitle').textContent = `桌 ${payload.tableId || me.tableId || ''}`;
+    renderSeats(payload.seats);
     $('status').textContent =
       `@${v.you.githubLogin} seat=${v.seat} street=${v.street} control=${v.you.control} stack=${v.stack}`;
-    $('board').textContent = 'board: ' + (v.board || []).map(card).join(' ') || '(none)';
+    $('board').textContent = 'board: ' + ((v.board || []).map(card).join(' ') || '(none)');
     $('hole').textContent = 'hole: ' + (v.hole || []).map(card).join(' ');
     $('pot').textContent = `pot=${v.pot} toCall=${v.toCall}`;
+
     const box = $('actions');
     box.innerHTML = '';
-
-    const sitBtn = document.createElement('button');
-    sitBtn.className = 'primary';
-    sitBtn.textContent = '坐下 / 刷新';
-    sitBtn.onclick = () => sit().catch((e) => showErr(e.message));
-    box.appendChild(sitBtn);
-
     const start = document.createElement('button');
     start.className = 'primary';
     start.textContent = '开一手';
-    start.onclick = () => api('/api/start', { method: 'POST', body: '{}' }).then(refresh).catch((e) => showErr(e.message));
+    start.onclick = () => api('/api/start', { method: 'POST', body: '{}' }).then(refreshTable).catch((e) => showErr(e.message));
     box.appendChild(start);
 
     if (v.you.control === 'hosted') {
       const back = document.createElement('button');
       back.className = 'warn';
       back.textContent = '收回控制';
-      back.onclick = () => api('/api/control', { method: 'POST', body: JSON.stringify({ control: 'manual' }) }).then(refresh).catch((e) => showErr(e.message));
+      back.onclick = () => api('/api/control', { method: 'POST', body: JSON.stringify({ control: 'manual' }) }).then(refreshTable).catch((e) => showErr(e.message));
       box.appendChild(back);
     } else {
       const host = document.createElement('button');
       host.textContent = '托管给 AI';
-      host.onclick = () => api('/api/control', { method: 'POST', body: JSON.stringify({ control: 'hosted' }) }).then(refresh).catch((e) => showErr(e.message));
+      host.onclick = () => api('/api/control', { method: 'POST', body: JSON.stringify({ control: 'hosted' }) }).then(refreshTable).catch((e) => showErr(e.message));
       box.appendChild(host);
-
       for (const a of (payload.legal || v.legal || [])) {
         const b = document.createElement('button');
         b.className = 'act';
@@ -94,59 +231,55 @@
         b.onclick = () => api('/api/act', {
           method: 'POST',
           body: JSON.stringify({ intent: { kind: a.kind, amount: a.min } }),
-        }).then(refresh).catch((e) => showErr(e.message));
+        }).then(refreshTable).catch((e) => showErr(e.message));
         box.appendChild(b);
       }
     }
-
     const next = document.createElement('button');
     next.textContent = '下一街';
-    next.onclick = () => api('/api/advance', { method: 'POST', body: '{}' }).then(refresh).catch((e) => showErr(e.message));
+    next.onclick = () => api('/api/advance', { method: 'POST', body: '{}' }).then(refreshTable).catch((e) => showErr(e.message));
     box.appendChild(next);
 
-    const reset = document.createElement('button');
-    reset.textContent = '重置桌子';
-    reset.onclick = () => api('/api/reset', { method: 'POST', body: '{}' }).then(boot).catch((e) => showErr(e.message));
-    box.appendChild(reset);
-
-    if (payload.result) {
-      $('result').textContent = 'HandResult: ' + JSON.stringify(payload.result);
-    } else {
-      $('result').textContent = '';
-    }
+    $('result').textContent = payload.result ? ('HandResult: ' + JSON.stringify(payload.result)) : '';
   }
 
-  async function refresh() {
+  async function refreshTable() {
     showErr('');
     const data = await api('/api/view');
     renderView(data);
   }
 
-  async function sit() {
-    showErr('');
-    await api('/api/sit', { method: 'POST', body: '{}' });
-    await refresh();
+  async function enterTable() {
+    viewMode = 'table';
+    $('lobby').classList.add('hidden');
+    $('table').classList.remove('hidden');
+    await refreshTable();
   }
 
   async function boot() {
     showErr('');
-    const me = await api('/api/me');
-    const auth = $('auth');
+    me = await api('/api/me');
+    renderAuth();
     if (!me.loggedIn) {
-      auth.innerHTML = `<p>未登录</p><a class="primary" href="${BASE}/login"><button class="primary">用 GitHub 登录</button></a>`;
-      $('table').hidden = true;
+      $('lobby').classList.add('hidden');
+      $('table').classList.add('hidden');
       return;
     }
-    auth.innerHTML = `<p>已登录：<strong>@${me.githubLogin}</strong></p>`;
-    $('table').hidden = false;
-    if (me.seat == null) await sit();
-    else await refresh();
+    if (me.tableId != null) await enterTable();
+    else await refreshLobby();
   }
+
+  $('btnCreate').onclick = () => createTable().catch((e) => showErr(e.message));
+  $('btnRefresh').onclick = () => refreshLobby().catch((e) => showErr(e.message));
+  $('btnBack').onclick = () => leaveTable().catch((e) => showErr(e.message));
 
   boot().catch((e) => showErr(e.message));
   setInterval(() => {
-    if (!$('table').hidden) refresh().catch(() => {});
-  }, 2500);
+    if (!me?.loggedIn) return;
+    if (viewMode === 'lobby') refreshLobby().catch(() => {});
+    else refreshTable().catch(() => {});
+    api('/api/me').then((m) => { me = m; renderAuth(); }).catch(() => {});
+  }, 3000);
 </script>
 </body>
 </html>

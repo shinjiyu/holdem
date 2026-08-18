@@ -10,6 +10,7 @@ import { SeatPlugin } from "../seat";
 export interface SitAtTableRequest {
   seat: number;
   githubLogin: string;
+  stack?: number;
 }
 
 export interface StartTableHandRequest {
@@ -47,7 +48,11 @@ export class TableSession {
   }
 
   sit(req: SitAtTableRequest): void {
-    this.bank.sit({ seat: req.seat, githubLogin: req.githubLogin });
+    this.bank.sit({
+      seat: req.seat,
+      githubLogin: req.githubLogin,
+      stack: req.stack,
+    });
     this.seat.sit({ seat: req.seat, githubLogin: req.githubLogin });
     this.remaining.set(req.seat, this.bank.stack(req.seat));
     if (!this.seated.includes(req.seat)) this.seated.push(req.seat);
@@ -58,8 +63,10 @@ export class TableSession {
     this.tableId = req.tableId ?? this.tableId;
     this.button = req.button;
     this.resultCache = null;
-    const sbSeat = req.button;
-    const bbSeat = this.seated.find((s) => s !== req.button) ?? this.seated[1]!;
+    const ordered = [...this.seated].sort((a, b) => a - b);
+    const bi = Math.max(0, ordered.indexOf(req.button));
+    const sbSeat = ordered[bi] ?? ordered[0]!;
+    const bbSeat = ordered[(bi + 1) % ordered.length]!;
     this.bank.postBlinds({ sbSeat, bbSeat });
     for (const seat of this.seated) {
       this.remaining.set(seat, this.bank.stack(seat));
