@@ -46,7 +46,7 @@ export function apply(ctx, config = {}) {
     description: 'Return the public H5 lobby URL for holdem (human sits here, then copies AI token).',
     parameters: {},
     output: {
-      schema: { type: 'object' },
+      schema: { type: 'object', additionalProperties: true },
       render: (_args, value) => jsonText(value),
     },
     async execute() {
@@ -59,7 +59,7 @@ export function apply(ctx, config = {}) {
     description: 'Fetch current seat view for a hosted holdem seat (street, hole, pot, actorsSeat, control).',
     parameters: { ...identityParams },
     output: {
-      schema: { type: 'object' },
+      schema: { type: 'object', additionalProperties: true },
       render: (_args, value) => jsonText(value),
     },
     async execute(args) {
@@ -72,7 +72,7 @@ export function apply(ctx, config = {}) {
     description: 'List legal ActionIntents. Empty unless control=hosted and it is this seat\'s turn.',
     parameters: { ...identityParams },
     output: {
-      schema: { type: 'object' },
+      schema: { type: 'object', additionalProperties: true },
       render: (_args, value) => jsonText(value),
     },
     async execute(args) {
@@ -92,7 +92,7 @@ export function apply(ctx, config = {}) {
       },
     },
     output: {
-      schema: { type: 'object' },
+      schema: { type: 'object', additionalProperties: true },
       render: (_args, value) => jsonText(value),
     },
     async execute(args) {
@@ -120,7 +120,7 @@ export function apply(ctx, config = {}) {
       },
     },
     output: {
-      schema: { type: 'object' },
+      schema: { type: 'object', additionalProperties: true },
       render: (_args, value) => jsonText(value),
     },
     async execute(args) {
@@ -138,7 +138,7 @@ export function apply(ctx, config = {}) {
     description: 'Fetch showdown HandResult when the hand is over; null/empty if still playing.',
     parameters: { ...identityParams },
     output: {
-      schema: { type: 'object' },
+      schema: { type: 'object', additionalProperties: true },
       render: (_args, value) => jsonText(value),
     },
     async execute(args) {
