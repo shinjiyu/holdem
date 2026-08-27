@@ -115,7 +115,6 @@ export function apply(ctx, config = {}) {
       },
       amount: {
         type: 'number',
-        required: false,
         description: 'Chips to put in for bet/raise',
       },
     },
